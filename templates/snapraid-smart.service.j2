@@ -1,0 +1,12 @@
+[Unit]
+Description=SnapRAID SMART — chequeo mensual de salud de discos
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/snapraid smart
+Nice=19
+IOSchedulingClass=idle
+SuccessExitStatus=0 1
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=snapraid-smart

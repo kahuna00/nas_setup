@@ -1,0 +1,12 @@
+[Unit]
+Description=SnapRAID SMART Timer — mensual el día 1
+Requires=snapraid-smart.service
+
+[Timer]
+# El primer día de cada mes a las 05:00
+OnCalendar=*-*-01 05:00:00
+Persistent=true
+RandomizedDelaySec=1800
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,12 @@
+# /etc/exports.d/nas-setup.exports
+# Generado por nas-setup — no editar manualmente
+# Última actualización: ${TIMESTAMP}
+#
+# Para recargar: sudo exportfs -ra
+# Para verificar: sudo showmount -e localhost
+
+# Share principal (usado por k8s CSI driver)
+${NFS_SHARE_DIR}   ${NFS_ALLOWED_NETWORK}(${NFS_EXPORT_OPTIONS})
+
+# Las shares adicionales de NFS_EXTRA_DIRS se añaden dinámicamente
+# por modules/01-nfs-samba/nfs.sh al momento de renderizar

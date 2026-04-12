@@ -1,0 +1,13 @@
+# Línea de /etc/fstab para el pool MergerFS
+# Generada por nas-setup — añadida automáticamente al /etc/fstab del sistema
+#
+# Opciones clave:
+#   allow_other     — permite acceso a otros usuarios (necesario para NFS re-export)
+#   use_ino         — inodos estables (necesario para NFS y algunos apps)
+#   category.create=mfs — escribe en el disco con más espacio libre
+#   moveonenospc=true   — mueve archivos al disco siguiente si se llena
+#   cache.files=off — sin caché de página (evita inconsistencias con SnapRAID)
+#   dropcacheonclose=true — limpia caché al cerrar (recomendado con SnapRAID)
+#   minfreespace=4G — reserva 4GB en cada disco antes de llenarlo
+
+${MERGERFS_SOURCES} ${MERGERFS_POOL_PATH} fuse.mergerfs defaults,allow_other,use_ino,category.create=${MERGERFS_CREATE_POLICY},moveonenospc=true,cache.files=off,dropcacheonclose=true,minfreespace=4G,fsname=mergerfs 0 0

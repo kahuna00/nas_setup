@@ -1,0 +1,12 @@
+[Unit]
+Description=SnapRAID Scrub Timer — semanal el ${SNAPRAID_SCRUB_DAY}
+Requires=snapraid-scrub.service
+
+[Timer]
+# Semanal el día configurado (Mon, Tue, Wed, Thu, Fri, Sat, Sun)
+OnCalendar=${SNAPRAID_SCRUB_DAY} *-*-* 04:00:00
+Persistent=true
+RandomizedDelaySec=600
+
+[Install]
+WantedBy=timers.target

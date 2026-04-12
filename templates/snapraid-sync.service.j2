@@ -1,0 +1,17 @@
+[Unit]
+Description=SnapRAID Sync — sincroniza datos al disco de paridad
+After=network.target
+
+[Service]
+Type=oneshot
+# Primero ejecuta diff para verificar que no haya cambios excesivos
+ExecStartPre=/usr/bin/snapraid diff
+# Luego ejecuta el script de sincronización (incluye comprobación de umbral)
+ExecStart=/bin/bash /var/lib/nas-setup/scripts/snapraid-sync-safe.sh
+Nice=19
+IOSchedulingClass=idle
+# No falla si SnapRAID retorna código de advertencia (1)
+SuccessExitStatus=0 1
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=snapraid-sync

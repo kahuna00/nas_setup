@@ -1,0 +1,13 @@
+[Unit]
+Description=SnapRAID Scrub — verifica integridad de datos (${SNAPRAID_SCRUB_PERCENT}%)
+After=snapraid-sync.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/snapraid scrub -p ${SNAPRAID_SCRUB_PERCENT} -o 0
+Nice=19
+IOSchedulingClass=idle
+SuccessExitStatus=0 1
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=snapraid-scrub

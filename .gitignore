@@ -1,0 +1,21 @@
+# Configuración con credenciales — NUNCA subir a git
+.env
+
+# Logs generados
+logs/*.log
+logs/
+
+# Manifests Kubernetes generados (contienen IPs y rutas locales)
+generated/
+
+# Binarios descargados en caché
+*.deb
+*.tar.gz
+
+# Backups de configuración del sistema (creados por los scripts)
+*.bak.*
+
+# Archivos temporales
+*.tmp
+*~
+.DS_Store

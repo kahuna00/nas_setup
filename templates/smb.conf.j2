@@ -1,0 +1,41 @@
+# /etc/samba/smb.conf
+# Generado por nas-setup — no editar manualmente
+# Para validar: testparm -s
+# Para recargar: systemctl reload smbd
+
+[global]
+   workgroup = ${SAMBA_WORKGROUP}
+   server string = NAS Server
+   security = user
+   map to guest = bad user
+   log file = /var/log/samba/%m.log
+   max log size = 1000
+   log level = ${SAMBA_LOG_LEVEL}
+   # Disable printing
+   load printers = no
+   printing = bsd
+   printcap name = /dev/null
+   disable spoolss = yes
+   # ARM-friendly: SMB2+ only (disable legacy SMB1)
+   server min protocol = SMB2
+   server max protocol = SMB3
+   # Performance tuning
+   socket options = TCP_NODELAY IPTOS_LOWDELAY SO_RCVBUF=131072 SO_SNDBUF=131072
+   read raw = yes
+   write raw = yes
+   use sendfile = yes
+
+[${SAMBA_SHARE_NAME}]
+   comment = NAS Principal
+   path = ${NFS_SHARE_DIR}
+   browseable = yes
+   writable = yes
+   valid users = ${SAMBA_USER}
+   create mask = 0664
+   directory mask = 0775
+   force group = ${SAMBA_USER}
+   # Velocidad: no recalcular permisos en cada operación
+   store dos attributes = no
+
+# Las shares adicionales de NFS_EXTRA_DIRS se añaden dinámicamente
+# por modules/01-nfs-samba/samba.sh al momento de renderizar

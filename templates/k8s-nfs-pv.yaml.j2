@@ -1,0 +1,45 @@
+# Generado por nas-setup módulo 3 — aplicar con: kubectl apply -f <archivo>
+# NOTA: Las variables ${NFS_SERVER} y similares usan la sintaxis de Flux
+# y serán sustituidas por Flux al aplicar, no por envsubst.
+#
+# Para aplicar manualmente (sin Flux):
+#   export NFS_SERVER=192.168.0.197
+#   envsubst < este-archivo.yaml | kubectl apply -f -
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: pv-${PV_NAME}
+  labels:
+    nas-setup: "true"
+    share: "${PV_NAME}"
+spec:
+  capacity:
+    storage: ${PV_SIZE}
+  accessModes:
+    - ReadWriteMany
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: ""
+  mountOptions:
+    - nfsvers=4.1
+    - noacl
+    - nolock
+  nfs:
+    server: ${NFS_SERVER}
+    path: ${NFS_SHARE_PATH}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: pvc-${PV_NAME}
+  namespace: ${K8S_PV_NAMESPACE}
+  labels:
+    nas-setup: "true"
+spec:
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: ${PV_SIZE}
+  storageClassName: ""
+  volumeName: pv-${PV_NAME}

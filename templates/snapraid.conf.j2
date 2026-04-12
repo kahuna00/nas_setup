@@ -1,0 +1,51 @@
+# /etc/snapraid.conf
+# Generado por nas-setup — no editar manualmente
+# Para verificar: snapraid status
+# Para sincronizar: snapraid sync
+#
+# ADVERTENCIA: Modificar este archivo manualmente puede corromper la paridad.
+# Re-ejecuta el módulo 2 de nas-setup para regenerarlo.
+
+# ─── PARITY DISKS ─────────────────────────────────────────────────────────────
+# Generado dinámicamente por modules/02-mergerfs-snapraid/snapraid.sh
+# (una línea "parity /mnt/parityN/.snapraid.parity" por disco de paridad)
+##PARITY_LINES##
+
+# ─── CONTENT FILES ────────────────────────────────────────────────────────────
+# Mínimo 1 por disco de datos + 1 en el sistema operativo
+# (una línea "content /mnt/diskN/.snapraid.content" por disco de datos
+#  más "content /var/snapraid.content" en el OS)
+##CONTENT_LINES##
+
+# ─── DATA DISKS ───────────────────────────────────────────────────────────────
+# (una línea "data dN /mnt/diskN" por disco de datos)
+##DATA_LINES##
+
+# ─── EXCLUDE PATTERNS ─────────────────────────────────────────────────────────
+# Archivos temporales y basura del sistema
+exclude *.tmp
+exclude *.temp
+exclude *.pyc
+exclude *.swp
+exclude *.swo
+exclude *~
+exclude .DS_Store
+exclude ._.DS_Store
+exclude .Trash-*
+exclude lost+found/
+exclude @recycle/
+exclude #recycle/
+exclude aquota.user
+exclude aquota.group
+exclude /tmp/
+exclude /proc/
+exclude *.!ut
+
+# ─── BLOCK SIZE ───────────────────────────────────────────────────────────────
+# 256 KB es adecuado para discos mecánicos (HDDs)
+# Para SSDs considera reducir a 128 KB
+blocksize 256
+
+# ─── HASH ALGORITHM ───────────────────────────────────────────────────────────
+# murmur3 es más rápido en ARM; usa spooky para mayor robustez
+hashsize 16
