@@ -1,0 +1,16 @@
+[Unit]
+Description=NFS Sync — copia ${NFS_SYNC_REMOTE_HOST}:${NFS_SYNC_REMOTE_PATH} → ${NFS_SYNC_DEST_DIR}
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/bin/bash /var/lib/nas-setup/scripts/nfs-sync.sh
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=nfs-sync
+# Tiempo máximo de ejecución: 6 horas (ajustar según volumen de datos)
+TimeoutStartSec=21600

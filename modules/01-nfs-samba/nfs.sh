@@ -57,6 +57,32 @@ render_exports() {
         done
     fi
 
+    # Add dedicated pool export if NFS_POOL_LINK is configured
+    if [[ -n "${NFS_POOL_LINK:-}" ]] && [[ -n "${MERGERFS_POOL_PATH:-}" ]]; then
+        # Skip if already exported via NFS_EXTRA_DIRS to avoid duplicates
+        local already_exported=0
+        if [[ -n "${NFS_EXTRA_DIRS:-}" ]]; then
+            local check_extras=()
+            split_colon_var NFS_EXTRA_DIRS check_extras
+            for check_dir in "${check_extras[@]}"; do
+                [[ "$check_dir" == "$NFS_POOL_LINK" ]] && already_exported=1 && break
+            done
+        fi
+        if [[ "$already_exported" -eq 0 ]]; then
+            local pool_fstype
+            pool_fstype=$(findmnt -n -o FSTYPE --target "${NFS_POOL_LINK}" 2>/dev/null || true)
+            local pool_opts="${NFS_EXPORT_OPTIONS}"
+            if [[ "$pool_fstype" == *fuse* ]]; then
+                pool_opts="${pool_opts},fsid=20"
+                log_debug "FUSE detectado en $NFS_POOL_LINK — añadiendo fsid=20"
+            fi
+            echo "${NFS_POOL_LINK}   ${NFS_ALLOWED_NETWORK}(${pool_opts})" >> "$EXPORTS_FILE"
+            log_debug "Share NFS del pool añadida: $NFS_POOL_LINK"
+        else
+            log_debug "NFS_POOL_LINK ($NFS_POOL_LINK) ya incluida vía NFS_EXTRA_DIRS — omitiendo duplicado"
+        fi
+    fi
+
     log_success "Exports renderizados en: $EXPORTS_FILE"
 }
 

@@ -3,10 +3,11 @@
 # Uso: sudo bash install.sh
 #
 # Módulos disponibles:
-#   1. NFS + Samba     — Configura shares de red desde .env
+#   1. NFS + Samba        — Configura shares de red desde .env
 #   2. MergerFS + SnapRAID — Setup guiado de pool + paridad
-#   3. K8s Integration — [EN DESARROLLO] Integración con cluster Kubernetes
-#   4. Tests           — Verificación post-instalación
+#   3. K8s Integration    — [EN DESARROLLO] Integración con cluster Kubernetes
+#   4. NFS Sync           — Copia periódica NFS remoto → local
+#   5. Tests              — Verificación post-instalación
 #
 # Requisitos: Debian/Ubuntu, ARM64 o amd64, root
 
@@ -35,7 +36,7 @@ show_banner() {
   ╚═╝  ╚═══╝╚═╝  ╚═╝╚══════╝    ╚══════╝╚══════╝   ╚═╝    ╚═════╝ ╚═╝
 BANNER
     echo -e "${RESET}"
-    echo -e "  ${DIM}NFS · Samba · MergerFS · SnapRAID · Kubernetes Storage${RESET}"
+    echo -e "  ${DIM}NFS · Samba · MergerFS · SnapRAID · NFS Sync · Kubernetes Storage${RESET}"
     echo -e "  ${DIM}$(uname -srm) | $(date '+%Y-%m-%d %H:%M')${RESET}"
     echo ""
 }
@@ -80,10 +81,13 @@ show_menu() {
     echo -e "  ${YELLOW}[3]${RESET} ${BOLD}Kubernetes Integration${RESET} ${YELLOW}[EN DESARROLLO]${RESET}"
     echo -e "      Integra el NAS con tu cluster k3s (PVs, cluster-vars, Longhorn)"
     echo ""
-    echo -e "  ${CYAN}[4]${RESET} ${BOLD}Ejecutar Tests${RESET}"
+    echo -e "  ${CYAN}[4]${RESET} ${BOLD}NFS Sync (remoto → local)${RESET}"
+    echo -e "      Copia periódica desde un NFS remoto al almacenamiento local (rsync + timer)"
+    echo ""
+    echo -e "  ${CYAN}[5]${RESET} ${BOLD}Ejecutar Tests${RESET}"
     echo -e "      Verifica NFS, Samba y MergerFS post-instalación"
     echo ""
-    echo -e "  ${CYAN}[5]${RESET} ${BOLD}Resetear estado${RESET} (permite re-ejecutar módulos ya configurados)"
+    echo -e "  ${CYAN}[6]${RESET} ${BOLD}Resetear estado${RESET} (permite re-ejecutar módulos ya configurados)"
     echo ""
     echo -e "  ${DIM}[0]${RESET} Salir"
     echo ""
@@ -149,9 +153,13 @@ main() {
                 setup_k8s_integration
                 ;;
             4)
-                run_tests
+                source "${NAS_SETUP_DIR}/modules/04-nfs-sync/setup.sh"
+                setup_nfs_sync
                 ;;
             5)
+                run_tests
+                ;;
+            6)
                 reset_state
                 ;;
             0|q|Q|exit|quit)

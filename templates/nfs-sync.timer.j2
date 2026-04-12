@@ -1,0 +1,13 @@
+[Unit]
+Description=NFS Sync Timer — diario a las ${NFS_SYNC_HOUR}:00
+Requires=nfs-sync.service
+
+[Timer]
+OnCalendar=*-*-* ${NFS_SYNC_HOUR}:00:00
+# Ejecutar si se perdió la ventana (ej: sistema apagado)
+Persistent=true
+# Variación aleatoria para evitar picos de carga exactos
+RandomizedDelaySec=120
+
+[Install]
+WantedBy=timers.target
