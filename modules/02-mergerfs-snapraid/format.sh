@@ -45,13 +45,17 @@ _format_disk() {
         mkfs.ext4 -L "$label" -m 1 "$part_dev" || return 1
 
     log_success "Disco ${dev} formateado como ext4 con etiqueta '${label}'"
-    echo "$part_dev"
 }
 
 _add_fstab_entry() {
     local uuid="$1"
     local mountpoint="$2"
     local label="$3"
+
+    if [[ -z "$uuid" ]]; then
+        log_error "_add_fstab_entry: UUID vacío para ${label} (${mountpoint}) — omitiendo"
+        return 1
+    fi
 
     # Check if already in fstab
     if grep -q "UUID=${uuid}" /etc/fstab; then
@@ -90,8 +94,15 @@ format_data_disks() {
     local idx=1
     for dev in "${DATA_DISKS[@]}"; do
         local label="data${idx}"
+        # Compute partition path before calling _format_disk so we don't capture
+        # log output via $() — log functions write to stdout and would contaminate the variable
         local part_dev
-        part_dev=$(_format_disk "$dev" "$label") || {
+        if [[ "$dev" =~ nvme ]]; then
+            part_dev="${dev}p1"
+        else
+            part_dev="${dev}1"
+        fi
+        _format_disk "$dev" "$label" || {
             log_error "Falló el formateo de ${dev}"
             return 1
         }
@@ -123,7 +134,12 @@ format_parity_disks() {
     for dev in "${PARITY_DISKS[@]}"; do
         local label="parity${idx}"
         local part_dev
-        part_dev=$(_format_disk "$dev" "$label") || {
+        if [[ "$dev" =~ nvme ]]; then
+            part_dev="${dev}p1"
+        else
+            part_dev="${dev}1"
+        fi
+        _format_disk "$dev" "$label" || {
             log_error "Falló el formateo de ${dev}"
             return 1
         }
@@ -156,18 +172,66 @@ map_existing_mountpoints() {
     done
 }
 
+# Add fstab entries for already-formatted disks (skipped format path)
+# Detects the partition on each device, reads its UUID via blkid, and calls
+# _add_fstab_entry — which also creates the mountpoint directory.
+register_existing_disks() {
+    local role="$1"   # "data" or "parity"
+    shift
+    local devs=("$@")
+
+    local idx=1
+    for dev in "${devs[@]}"; do
+        local label="${role}${idx}"
+        local mp="${DISK_MOUNTPOINT[$dev]:-${DISK_MOUNT_PREFIX}/${label}}"
+
+        local part_dev
+        if [[ "$dev" =~ nvme ]]; then
+            part_dev="${dev}p1"
+        else
+            part_dev="${dev}1"
+        fi
+
+        if [[ ! -b "$part_dev" ]]; then
+            log_warn "No se encontró partición en ${part_dev} — ¿disco sin particionar?"
+            ((idx++))
+            continue
+        fi
+
+        local uuid
+        uuid=$(blkid -s UUID -o value "$part_dev" 2>/dev/null || true)
+        if [[ -z "$uuid" ]]; then
+            log_warn "${part_dev} no tiene UUID — puede no estar formateado. Ejecuta el módulo con formateo habilitado."
+            ((idx++))
+            continue
+        fi
+
+        _add_fstab_entry "$uuid" "$mp" "$label"
+        DISK_MOUNTPOINT["$dev"]="$mp"
+        ((idx++))
+    done
+}
+
 mount_all_disks() {
     log_info "Montando discos vía fstab..."
-    mount -a 2>&1 | tee -a "$LOG_FILE" || log_warn "Algunos discos pueden no haberse montado correctamente"
 
-    # Verify each disk is mounted
+    # Mount each disk explicitly by mountpoint (not mount -a) to avoid
+    # triggering the mergerfs fstab entry before source disks are ready
     local all_ok=1
     for dev in "${DATA_DISKS[@]}" "${PARITY_DISKS[@]}"; do
         local mp="${DISK_MOUNTPOINT[$dev]:-}"
         [[ -z "$mp" ]] && continue
+
         if mountpoint -q "$mp"; then
+            log_info "Ya montado: ${mp}"
+            continue
+        fi
+
+        local mount_out
+        if mount_out=$(mount "$mp" 2>&1); then
             log_success "Montado: ${mp}"
         else
+            echo "$mount_out" | tee -a "$LOG_FILE"
             log_error "No se pudo montar: ${mp} (${dev})"
             all_ok=0
         fi

@@ -36,6 +36,10 @@ setup_nfs_samba() {
     echo -e "  Share Samba         : ${CYAN}${SAMBA_SHARE_NAME}${RESET}"
     [[ -n "${NFS_EXTRA_DIRS:-}" ]] && \
         echo -e "  Shares extras       : ${CYAN}${NFS_EXTRA_DIRS}${RESET}"
+    [[ -n "${NFS_POOL_LINK:-}" ]] && \
+        echo -e "  Symlink NFS pool    : ${CYAN}${NFS_POOL_LINK}${RESET} → ${MERGERFS_POOL_PATH:-/mergerfs/pool}"
+    [[ -n "${SMB_POOL_LINK:-}" ]] && \
+        echo -e "  Symlink SMB pool    : ${CYAN}${SMB_POOL_LINK}${RESET} → ${MERGERFS_POOL_PATH:-/mergerfs/pool}"
     echo ""
 
     confirm "¿Aplicar configuración NFS + Samba?" "Y" || {
@@ -68,8 +72,22 @@ setup_nfs_samba() {
     log_success "Módulo 1 completado exitosamente"
     log_success "═══════════════════════════════════════════════"
     echo ""
-    echo -e "  ${DIM}Acceso NFS  : mount -t nfs ${HOSTNAME}:${NFS_SHARE_DIR} /mnt/nas${RESET}"
-    echo -e "  ${DIM}Acceso SMB  : smb://${HOSTNAME}/${SAMBA_SHARE_NAME}${RESET}"
-    echo -e "  ${DIM}Log         : ${LOG_FILE}${RESET}"
+
+    local server_ip
+    server_ip=$(ip route get 1.1.1.1 2>/dev/null | awk '{for(i=1;i<=NF;i++) if($i=="src") {print $(i+1); exit}}')
+    server_ip="${server_ip:-$(hostname -I 2>/dev/null | awk '{print $1}')}"
+    server_ip="${server_ip:-${HOSTNAME}}"
+
+    echo -e "  ${BOLD}Accesos NFS:${RESET}"
+    echo -e "  ${DIM}mount -t nfs ${server_ip}:${NFS_SHARE_DIR} /mnt/nas${RESET}"
+    [[ -n "${NFS_POOL_LINK:-}" ]] && \
+        echo -e "  ${DIM}mount -t nfs ${server_ip}:${NFS_POOL_LINK} /mnt/pool${RESET}"
+    echo ""
+    echo -e "  ${BOLD}Accesos Samba:${RESET}"
+    echo -e "  ${DIM}smb://${server_ip}/${SAMBA_SHARE_NAME}${RESET}"
+    [[ -n "${SMB_POOL_LINK:-}" ]] && \
+        echo -e "  ${DIM}smb://${server_ip}/$(basename "$SMB_POOL_LINK" | tr '[:lower:]' '[:upper:]')${RESET}"
+    echo ""
+    echo -e "  ${DIM}Log : ${LOG_FILE}${RESET}"
     echo ""
 }

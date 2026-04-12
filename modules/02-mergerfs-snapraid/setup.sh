@@ -67,18 +67,20 @@ setup_mergerfs_snapraid() {
     if confirm "¿Formatear discos DATA?" "N"; then
         format_data_disks || return 1
     else
-        log_info "Saltando formateo DATA — se asumen discos ya configurados"
+        log_info "Saltando formateo DATA — registrando discos existentes en fstab..."
+        map_existing_mountpoints
+        register_existing_disks "data" "${DATA_DISKS[@]}"
     fi
 
     if [[ ${#PARITY_DISKS[@]} -gt 0 ]]; then
         if confirm "¿Formatear discos PARITY?" "N"; then
             format_parity_disks || return 1
         else
-            log_info "Saltando formateo PARITY"
+            log_info "Saltando formateo PARITY — registrando discos existentes en fstab..."
+            map_existing_mountpoints
+            register_existing_disks "parity" "${PARITY_DISKS[@]}"
         fi
     fi
-
-    map_existing_mountpoints
     mount_all_disks || log_warn "Algunos discos no se pudieron montar — verifica /etc/fstab"
 
     # ══════════════════════════════════════════════════════════════════════════

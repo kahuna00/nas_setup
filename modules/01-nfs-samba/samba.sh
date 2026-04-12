@@ -9,7 +9,7 @@ TEMPLATE_DIR="${NAS_SETUP_DIR}/templates"
 install_samba() {
     skip_if_done "samba_installed" "instalación de Samba" && return 0
     apt_update_once
-    pkg_install samba samba-common-bin || return 1
+    pkg_install samba samba-common-bin smbclient || return 1
     state_mark "samba_installed"
 }
 
@@ -53,6 +53,27 @@ EOF
         done
     fi
 
+    # Add dedicated pool share if SMB_POOL_LINK is configured
+    if [[ -n "${SMB_POOL_LINK:-}" ]] && [[ -n "${MERGERFS_POOL_PATH:-}" ]]; then
+        local pool_share_name
+        pool_share_name=$(basename "$SMB_POOL_LINK" | tr '[:lower:]' '[:upper:]')
+        cat >> "$tmp_conf" << EOF
+
+[${pool_share_name}]
+   comment = MergerFS Pool
+   path = ${SMB_POOL_LINK}
+   browseable = yes
+   writable = yes
+   valid users = ${SAMBA_USER}
+   create mask = 0664
+   directory mask = 0775
+   force group = ${SAMBA_USER}
+   follow symlinks = yes
+   wide links = yes
+EOF
+        log_debug "Share Samba del pool añadida: [${pool_share_name}] → $SMB_POOL_LINK"
+    fi
+
     # Validate config before applying
     if ! testparm -s "$tmp_conf" &>/dev/null; then
         log_error "smb.conf generado tiene errores — no se aplicará"
@@ -64,6 +85,34 @@ EOF
     backup_smb_conf
     mv "$tmp_conf" "$SMB_CONF"
     log_success "smb.conf aplicado y validado"
+}
+
+_create_pool_smb_link() {
+    [[ -z "${SMB_POOL_LINK:-}" ]] && return 0
+    [[ -z "${MERGERFS_POOL_PATH:-}" ]] && return 0
+
+    local target="${MERGERFS_POOL_PATH}/smb"
+    mkdir -p "$target"
+    chown "${SAMBA_USER:-nasuser}:${SAMBA_USER:-nasuser}" "$target"
+    chmod 775 "$target"
+
+    if [[ -L "$SMB_POOL_LINK" ]]; then
+        local current_target
+        current_target=$(readlink "$SMB_POOL_LINK")
+        if [[ "$current_target" == "$target" ]]; then
+            log_info "Symlink Samba ya existe: $SMB_POOL_LINK → $target"
+            return 0
+        fi
+        log_warn "Actualizando symlink Samba: $SMB_POOL_LINK (era → $current_target)"
+        rm "$SMB_POOL_LINK"
+    elif [[ -e "$SMB_POOL_LINK" ]]; then
+        log_error "$SMB_POOL_LINK ya existe y no es un symlink — no se sobreescribirá"
+        return 1
+    fi
+
+    mkdir -p "$(dirname "$SMB_POOL_LINK")"
+    ln -s "$target" "$SMB_POOL_LINK"
+    log_success "Symlink Samba creado: $SMB_POOL_LINK → $target"
 }
 
 configure_samba_user() {
@@ -93,6 +142,14 @@ configure_samba_user() {
 configure_samba() {
     log_info "Instalando Samba..."
     install_samba || return 1
+
+    if ! command -v smbclient &>/dev/null; then
+        log_info "Instalando smbclient..."
+        pkg_install smbclient || log_warn "No se pudo instalar smbclient — validación usará testparm"
+    fi
+
+    log_info "Creando symlink del pool MergerFS para Samba..."
+    _create_pool_smb_link || return 1
 
     log_info "Renderizando smb.conf..."
     render_smb_conf || return 1

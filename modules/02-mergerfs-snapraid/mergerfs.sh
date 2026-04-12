@@ -115,6 +115,13 @@ configure_mergerfs_fstab() {
 }
 
 mount_mergerfs_pool() {
+    # If path exists but is not a directory, report clearly rather than letting mount fail cryptically
+    if [[ -e "$MERGERFS_POOL_PATH" ]] && [[ ! -d "$MERGERFS_POOL_PATH" ]]; then
+        log_error "$MERGERFS_POOL_PATH existe pero no es un directorio ($(ls -ld "$MERGERFS_POOL_PATH" 2>&1))"
+        log_info "Elimínalo manualmente y vuelve a ejecutar: rm -f \"${MERGERFS_POOL_PATH}\""
+        return 1
+    fi
+
     mkdir -p "$MERGERFS_POOL_PATH"
 
     if mountpoint -q "$MERGERFS_POOL_PATH"; then
@@ -123,16 +130,26 @@ mount_mergerfs_pool() {
     fi
 
     log_info "Montando pool MergerFS en: $MERGERFS_POOL_PATH"
-    mount "$MERGERFS_POOL_PATH" 2>&1 | tee -a "$LOG_FILE" || {
+    local mount_output
+    if ! mount_output=$(mount "$MERGERFS_POOL_PATH" 2>&1); then
+        [[ -n "$mount_output" ]] && echo "$mount_output" | tee -a "$LOG_FILE"
         log_error "No se pudo montar el pool MergerFS"
         log_info "Verifica con: mount -v ${MERGERFS_POOL_PATH}"
         return 1
-    }
+    fi
+    [[ -n "$mount_output" ]] && echo "$mount_output" | tee -a "$LOG_FILE"
+
+    # Verify the FUSE daemon actually stayed mounted (mount can return 0 before FUSE init completes)
+    if ! mountpoint -q "$MERGERFS_POOL_PATH"; then
+        log_error "mount retornó 0 pero $MERGERFS_POOL_PATH no es un mountpoint activo"
+        log_info "Verifica que los discos fuente estén montados: $(echo "${MERGERFS_SOURCES:-}" | tr ':' ' ')"
+        return 1
+    fi
 
     log_success "Pool MergerFS montado correctamente"
-    df -h "$MERGERFS_POOL_PATH" | tail -1 | while read -r line; do
+    df -h "$MERGERFS_POOL_PATH" 2>/dev/null | tail -1 | while read -r line; do
         echo -e "  ${DIM}${line}${RESET}"
-    done
+    done || true
 }
 
 configure_mergerfs() {

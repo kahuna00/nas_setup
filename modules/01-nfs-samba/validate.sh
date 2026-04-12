@@ -17,9 +17,10 @@ validate_nfs() {
         echo -e "  ${DIM}${line}${RESET}"
     done
 
-    # Check primary share is exported
-    if ! showmount -e localhost 2>/dev/null | grep -q "$NFS_SHARE_DIR"; then
-        log_error "Share principal no encontrada en showmount: $NFS_SHARE_DIR"
+    # Check primary share is exported (use exportfs -v — showmount requires rpcbind
+    # which may not be available on NFSv4-only setups or modern ARM kernels)
+    if ! exportfs -v 2>/dev/null | grep -q "$NFS_SHARE_DIR"; then
+        log_error "Share principal no encontrada en exports activos: $NFS_SHARE_DIR"
         return 1
     fi
 
@@ -36,7 +37,13 @@ validate_smb_share() {
     fi
 
     # Check share is visible
-    if ! smbclient -L localhost -U "${SAMBA_USER}%${SAMBA_PASSWORD}" 2>/dev/null \
+    if ! command -v smbclient &>/dev/null; then
+        log_warn "smbclient no disponible — verificando via testparm"
+        if ! testparm -s 2>/dev/null | grep -q "^\[${SAMBA_SHARE_NAME}\]"; then
+            log_error "Share Samba '$SAMBA_SHARE_NAME' no encontrada en smb.conf"
+            return 1
+        fi
+    elif ! smbclient -L localhost -U "${SAMBA_USER}%${SAMBA_PASSWORD}" 2>/dev/null \
             | grep -q "$SAMBA_SHARE_NAME"; then
         log_error "Share Samba '$SAMBA_SHARE_NAME' no visible en smbclient -L"
         return 1

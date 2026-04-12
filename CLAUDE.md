@@ -16,11 +16,11 @@ Suite de scripts Bash para configurar el almacenamiento NAS en un servidor CM358
 |-------|-------|
 | Hardware | FriendlyElec CM3588 NAS (ARM64/aarch64) |
 | OS | Linux 6.1.115-vendor-rk35xx (Debian/Ubuntu) |
-| IP del NAS | 192.168.0.197 |
+| IP del NAS | 192.168.0.14 |
 | Kubernetes | k3s v1.31.4+k3s1 |
 | GitOps | Flux CD (reconcilia cada 2 min al hacer push) |
 | Dominio | kahunaz.duckdns.org |
-| Storage class default | `nfs-csi` (servidor: 192.168.0.197, path: /nfs/kahunaz) |
+| Storage class default | `nfs-csi` (servidor: 192.168.0.14, path: /nfs/kahunaz) |
 | Rutas NFS en uso por k8s | `/nfs/kahunaz` (CSI dynamic), `/armhot/Media/downloads`, `/armhot/respaldo-asm`, `/armhot/backups/k8s` |
 
 ---

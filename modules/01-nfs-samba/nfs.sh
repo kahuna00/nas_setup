@@ -36,18 +36,56 @@ render_exports() {
     if [[ -n "${NFS_EXTRA_DIRS:-}" ]]; then
         local extras=()
         split_colon_var NFS_EXTRA_DIRS extras
+        local fsid_idx=10  # start at 10 to avoid collision with any implicit fsid=0 on main share
         for extra_dir in "${extras[@]}"; do
             [[ -z "$extra_dir" ]] && continue
             if [[ ! -d "$extra_dir" ]]; then
                 log_warn "Directorio extra no existe, creando: $extra_dir"
                 mkdir -p "$extra_dir"
             fi
-            echo "${extra_dir}   ${NFS_ALLOWED_NETWORK}(${NFS_EXPORT_OPTIONS})" >> "$EXPORTS_FILE"
+            # FUSE filesystems (e.g. MergerFS) require fsid= for NFS export
+            local fstype
+            fstype=$(findmnt -n -o FSTYPE --target "$extra_dir" 2>/dev/null || true)
+            local opts="${NFS_EXPORT_OPTIONS}"
+            if [[ "$fstype" == *fuse* ]]; then
+                opts="${opts},fsid=${fsid_idx}"
+                log_debug "FUSE detectado en $extra_dir — añadiendo fsid=${fsid_idx}"
+                ((fsid_idx++))
+            fi
+            echo "${extra_dir}   ${NFS_ALLOWED_NETWORK}(${opts})" >> "$EXPORTS_FILE"
             log_debug "Share NFS extra añadida: $extra_dir"
         done
     fi
 
     log_success "Exports renderizados en: $EXPORTS_FILE"
+}
+
+_create_pool_nfs_link() {
+    [[ -z "${NFS_POOL_LINK:-}" ]] && return 0
+    [[ -z "${MERGERFS_POOL_PATH:-}" ]] && return 0
+
+    local target="${MERGERFS_POOL_PATH}/nfs"
+    mkdir -p "$target"
+    chown "${SAMBA_USER:-nasuser}:${SAMBA_USER:-nasuser}" "$target"
+    chmod 775 "$target"
+
+    if [[ -L "$NFS_POOL_LINK" ]]; then
+        local current_target
+        current_target=$(readlink "$NFS_POOL_LINK")
+        if [[ "$current_target" == "$target" ]]; then
+            log_info "Symlink NFS ya existe: $NFS_POOL_LINK → $target"
+            return 0
+        fi
+        log_warn "Actualizando symlink NFS: $NFS_POOL_LINK (era → $current_target)"
+        rm "$NFS_POOL_LINK"
+    elif [[ -e "$NFS_POOL_LINK" ]]; then
+        log_error "$NFS_POOL_LINK ya existe y no es un symlink — no se sobreescribirá"
+        return 1
+    fi
+
+    mkdir -p "$(dirname "$NFS_POOL_LINK")"
+    ln -s "$target" "$NFS_POOL_LINK"
+    log_success "Symlink NFS creado: $NFS_POOL_LINK → $target"
 }
 
 configure_nfs() {
@@ -56,6 +94,9 @@ configure_nfs() {
 
     log_info "Creando directorio de share principal..."
     mkdir -p "$NFS_SHARE_DIR"
+
+    log_info "Creando symlink del pool MergerFS para NFS..."
+    _create_pool_nfs_link || return 1
 
     log_info "Renderizando /etc/exports.d/nas-setup.exports..."
     render_exports || return 1
