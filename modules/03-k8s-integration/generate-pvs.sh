@@ -1,33 +1,99 @@
 #!/usr/bin/env bash
 # modules/03-k8s-integration/generate-pvs.sh
-# Genera manifests PV + PVC para exponer shares NFS en Kubernetes
-# ESTADO: Preparado para uso futuro — activar desde setup.sh
+# Genera manifests PV + PVC para exponer shares en Kubernetes
+# Soporta dos modos: nfs (acceso remoto vía NFS) y local (hostPath, single-node)
 
 NAS_SETUP_DIR="$(dirname "$(dirname "$(dirname "${BASH_SOURCE[0]}")")")"
 TEMPLATE_DIR="${NAS_SETUP_DIR}/templates"
 
-generate_pv_manifests() {
-    local output_dir="${K8S_MANIFESTS_OUTPUT:-./generated/k8s}"
-    mkdir -p "$output_dir"
-
-    log_info "Generando manifests PV/PVC en: $output_dir"
-
-    # Build list of shares to expose
-    local shares=("$NFS_SHARE_DIR")
+_resolve_shares() {
+    local -n _shares_ref=$1
+    _shares_ref=("$NFS_SHARE_DIR")
     if [[ -n "${NFS_EXTRA_DIRS:-}" ]]; then
         local extras=()
         split_colon_var NFS_EXTRA_DIRS extras
-        shares+=("${extras[@]}")
+        _shares_ref+=("${extras[@]}")
     fi
-    # Add MergerFS pool if configured
-    [[ -n "${MERGERFS_POOL_PATH:-}" ]] && shares+=("$MERGERFS_POOL_PATH")
+    [[ -n "${MERGERFS_POOL_PATH:-}" ]] && _shares_ref+=("$MERGERFS_POOL_PATH")
+}
 
-    # Get NFS server IP
+_get_nfs_server_ip() {
+    hostname -I | awk '{print $1}'
+}
+
+_get_node_name() {
+    if kubectl_available; then
+        kubectl get nodes -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || hostname
+    else
+        hostname
+    fi
+}
+
+_generate_nfs_manifests() {
+    local output_dir="$1"
+    local pv_size="$2"
     local nfs_server
-    nfs_server=$(hostname -I | awk '{print $1}')
+    nfs_server=$(_get_nfs_server_ip)
+
+    local shares=()
+    _resolve_shares shares
+
+    for share in "${shares[@]}"; do
+        [[ -z "$share" ]] && continue
+
+        local pv_name
+        pv_name=$(echo "$share" | tr '/' '-' | sed 's/^-//')
+        local manifest_file="${output_dir}/pv-nfs-${pv_name}.yaml"
+
+        export PV_NAME="$pv_name"
+        export PV_SIZE="$pv_size"
+        export NFS_SERVER="$nfs_server"
+        export NFS_SHARE_PATH="$share"
+
+        envsubst < "${TEMPLATE_DIR}/k8s-nfs-pv.yaml.j2" > "$manifest_file"
+        log_success "Manifest NFS generado: $manifest_file"
+    done
+}
+
+_generate_local_manifests() {
+    local output_dir="$1"
+    local pv_size="$2"
+    local node_name
+    node_name=$(_get_node_name)
+
+    local shares=()
+    _resolve_shares shares
+
+    for share in "${shares[@]}"; do
+        [[ -z "$share" ]] && continue
+
+        local pv_name
+        pv_name=$(echo "$share" | tr '/' '-' | sed 's/^-//')
+        local manifest_file="${output_dir}/pv-local-${pv_name}.yaml"
+
+        export PV_NAME="$pv_name"
+        export PV_SIZE="$pv_size"
+        export LOCAL_PATH="$share"
+        export K8S_NODE_NAME="$node_name"
+
+        envsubst < "${TEMPLATE_DIR}/k8s-hostpath-pv.yaml.j2" > "$manifest_file"
+        log_success "Manifest local (hostPath) generado: $manifest_file"
+    done
+}
+
+generate_pv_manifests() {
+    local output_dir="${K8S_MANIFESTS_OUTPUT:-./generated/k8s}"
+    local mode="${K8S_STORAGE_MODE:-nfs}"
+    mkdir -p "$output_dir"
+
+    log_info "Modo de storage: ${BOLD}${mode}${RESET}"
+    log_info "Generando manifests PV/PVC en: $output_dir"
+
+    local shares=()
+    _resolve_shares shares
 
     echo ""
-    echo -e "  ${BOLD}Shares a exponer como PVs:${RESET}"
+    echo -e "  ${BOLD}Shares a exponer como PVs (modo: ${mode}):${RESET}"
     for share in "${shares[@]}"; do
         [[ -z "$share" ]] && continue
         echo -e "  ${CYAN}•${RESET} $share"
@@ -38,21 +104,14 @@ generate_pv_manifests() {
     read -rp "$(echo -e "  ${BOLD}Capacidad por PV (ej: 512Gi, 1Ti): ${RESET}")" pv_size
     pv_size="${pv_size:-100Gi}"
 
-    for share in "${shares[@]}"; do
-        [[ -z "$share" ]] && continue
-
-        local pv_name
-        pv_name=$(echo "$share" | tr '/' '-' | sed 's/^-//')
-        local manifest_file="${output_dir}/pv-${pv_name}.yaml"
-
-        export PV_NAME="$pv_name"
-        export PV_SIZE="$pv_size"
-        export NFS_SERVER="$nfs_server"
-        export NFS_SHARE_PATH="$share"
-
-        envsubst < "${TEMPLATE_DIR}/k8s-nfs-pv.yaml.j2" > "$manifest_file"
-        log_success "Manifest generado: $manifest_file"
-    done
+    if [[ "$mode" == "local" ]]; then
+        _generate_local_manifests "$output_dir" "$pv_size"
+        echo ""
+        log_warn "Modo local (hostPath): solo válido en clusters single-node"
+        log_info "Los pods quedan fijados al nodo: $(_get_node_name)"
+    else
+        _generate_nfs_manifests "$output_dir" "$pv_size"
+    fi
 
     echo ""
     log_info "Para aplicar al cluster:"
@@ -62,8 +121,10 @@ generate_pv_manifests() {
     echo -e "  ${BOLD}kubectl apply --dry-run=client -f ${output_dir}/${RESET}"
     echo ""
 
-    print_recommendation "Si usas Flux GitOps, copia los manifests a k8-homelab/apps/kahunaz/
+    if [[ "${K8S_HOMELAB_PATH:-}" != "" ]] && [[ -d "$K8S_HOMELAB_PATH" ]]; then
+        print_recommendation "Si usas Flux GitOps, copia los manifests a k8-homelab/apps/kahunaz/
   y haz push — Flux los aplicará automáticamente en ~2 minutos."
+    fi
 }
 
 show_longhorn_guide() {

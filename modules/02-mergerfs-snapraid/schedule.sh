@@ -42,7 +42,24 @@ EOF
     log_success "Script de sync seguro creado: ${SCRIPTS_DIR}/snapraid-sync-safe.sh"
 }
 
+_export_snapraid_oncalendar() {
+    local period="${SNAPRAID_SYNC_PERIOD:-daily}"
+    local hour="${SNAPRAID_SYNC_HOUR:-3}"
+    local day="${SNAPRAID_SYNC_DAY:-Sun}"
+
+    case "$period" in
+        weekly)  export SNAPRAID_SYNC_ONCALENDAR="${day} *-*-* ${hour}:00:00"
+                 export SNAPRAID_SYNC_SCHEDULE_LABEL="Semanal · ${day} ${hour}:00" ;;
+        monthly) export SNAPRAID_SYNC_ONCALENDAR="*-*-01 ${hour}:00:00"
+                 export SNAPRAID_SYNC_SCHEDULE_LABEL="Mensual · día 1 ${hour}:00" ;;
+        *)       export SNAPRAID_SYNC_ONCALENDAR="*-*-* ${hour}:00:00"
+                 export SNAPRAID_SYNC_SCHEDULE_LABEL="Diario · ${hour}:00" ;;
+    esac
+}
+
 _install_systemd_units() {
+    _export_snapraid_oncalendar
+
     local units=(
         "snapraid-sync.service"
         "snapraid-sync.timer"

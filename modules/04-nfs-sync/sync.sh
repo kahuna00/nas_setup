@@ -34,7 +34,7 @@ _create_sync_script() {
 # Sincroniza NFS remoto → local usando rsync
 # Fuente : ${NFS_SYNC_REMOTE_HOST}:${NFS_SYNC_REMOTE_PATH}
 # Destino: ${NFS_SYNC_DEST_DIR}
-set -euo pipefail
+set -uo pipefail
 
 MOUNT_POINT="${NFS_SYNC_MOUNT_POINT}"
 DEST_DIR="${NFS_SYNC_DEST_DIR}"
@@ -65,15 +65,17 @@ log "Iniciando rsync: \$MOUNT_POINT/ → \$DEST_DIR/"
 START=\$(date +%s)
 
 # shellcheck disable=SC2086
-rsync \$RSYNC_OPTS "\$MOUNT_POINT/" "\$DEST_DIR/"
-EXIT_CODE=\$?
+# set -e desactivado para rsync: capturamos su exit code manualmente.
+# exit 23 = archivos parcialmente no transferidos (p.ej. ficheros activos de BD/Prometheus)
+# exit 24 = archivos desaparecieron durante la transferencia (normal en NFS en vivo)
+# Ambos se tratan como advertencia, no como error.
+rsync \$RSYNC_OPTS "\$MOUNT_POINT/" "\$DEST_DIR/" && EXIT_CODE=0 || EXIT_CODE=\$?
 
 ELAPSED=\$(( \$(date +%s) - START ))
 if [[ \$EXIT_CODE -eq 0 ]]; then
     log "Sync completado en \${ELAPSED}s"
-elif [[ \$EXIT_CODE -eq 24 ]]; then
-    # rsync exit 24: algunos archivos desaparecieron durante la transferencia (normal en NFS)
-    log "Sync completado con advertencias (archivos en tránsito, código 24) en \${ELAPSED}s"
+elif [[ \$EXIT_CODE -eq 23 || \$EXIT_CODE -eq 24 ]]; then
+    log "Sync completado con advertencias (archivos en tránsito o activos, código \${EXIT_CODE}) en \${ELAPSED}s"
     EXIT_CODE=0
 else
     log "ERROR: rsync finalizó con código \$EXIT_CODE después de \${ELAPSED}s"

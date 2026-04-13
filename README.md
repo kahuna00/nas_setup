@@ -2,7 +2,7 @@
 
 Suite de scripts Bash para configurar almacenamiento en red en un servidor NAS ARM64 (CM3588) corriendo k3s Kubernetes con Flux GitOps.
 
-**Cubre:** NFS · Samba/CIFS · MergerFS · SnapRAID · Integración Kubernetes (preparado)
+**Cubre:** NFS · Samba/CIFS · MergerFS · SnapRAID · NFS Sync · Integración Kubernetes
 
 ---
 
@@ -14,6 +14,7 @@ Suite de scripts Bash para configurar almacenamiento en red en un servidor NAS A
   - [Módulo 1 — NFS + Samba](#módulo-1--nfs--samba)
   - [Módulo 2 — MergerFS + SnapRAID](#módulo-2--mergerfs--snapraid)
   - [Módulo 3 — Integración Kubernetes](#módulo-3--integración-kubernetes)
+  - [Módulo 4 — NFS Sync](#módulo-4--nfs-sync)
 - [Configuración (.env)](#configuración-env)
 - [Tests de verificación](#tests-de-verificación)
 - [GUIs recomendadas](#guis-recomendadas)
@@ -64,13 +65,15 @@ Configura shares de red desde las variables del `.env`. Idempotente: re-ejecutar
 3. Genera y valida `/etc/samba/smb.conf` con `testparm` antes de aplicar
 4. Crea el usuario Samba (usuario de sistema sin login) y establece su contraseña
 5. Verifica pre/post que los PersistentVolumes Kubernetes NFS sigan en estado `Bound`
-6. Ejecuta smoke tests: `showmount -e` y `smbclient`
+6. Ejecuta smoke tests: `exportfs -v` y `smbclient`
 
 **Variables clave en `.env`:**
 
 ```bash
-NFS_SHARE_DIR=/nfs/kahunaz          # share principal (ya usada por k8s CSI)
+NFS_SHARE_DIR=/nfs/kahunaz             # share principal (usada por k8s CSI)
 NFS_EXTRA_DIRS=/armhot:/mergerfs/pool  # shares adicionales (opcional)
+NFS_POOL_LINK=/srv/nfs                 # symlink del pool MergerFS para NFS
+SMB_POOL_LINK=/srv/smb                 # symlink del pool MergerFS para Samba
 NFS_ALLOWED_NETWORK=192.168.0.0/24
 SAMBA_USER=nasuser
 SAMBA_PASSWORD=tu-password-seguro
@@ -81,15 +84,17 @@ SAMBA_SHARE_NAME=NAS
 
 ```bash
 # Linux — NFS
-mount -t nfs -o nfsvers=4.1 192.168.0.197:/nfs/kahunaz /mnt/nas
+mount -t nfs -o nfsvers=4.1 <IP_NAS>:/nfs/kahunaz /mnt/nas
 
 # Windows/macOS — Samba
-# Explorador: \\192.168.0.197\NAS
-# macOS Finder: smb://192.168.0.197/NAS
+# Explorador: \\<IP_NAS>\NAS
+# macOS Finder: smb://<IP_NAS>/NAS
 
 # Kubernetes (ya configurado vía CSI driver)
 # storageClassName: nfs-csi
 ```
+
+> Sustituye `<IP_NAS>` por la IP de tu servidor (detectable con `hostname -I | awk '{print $1}'`).
 
 ---
 
@@ -199,23 +204,78 @@ SCHEDULE_TYPE=systemd            # systemd (recomendado) o cron
 
 ### Módulo 3 — Integración Kubernetes
 
-> **Estado: preparado pero inactivo.** El código está completo y documentado. Para activarlo, elimina `return 0` en `modules/03-k8s-integration/setup.sh` línea ~30.
+Integra el NAS con el cluster k3s. Permite cambiar el modo de storage entre NFS y acceso local directo, y generar los manifests PV/PVC correspondientes.
 
-Cuando lo actives, este módulo permite:
+**Modos de storage:**
 
-1. **Actualizar `cluster-vars.yaml`** — patch quirúrgico de `NFS_PATH` con `yq`, preservando todas las variables de sustitución de Flux. Ofrece `git commit + push` automático (Flux reconcilia en ~2 minutos).
+| Modo | Mecanismo | Cuándo usarlo |
+|------|-----------|---------------|
+| `nfs` | PVs con spec `nfs:` vía nfs-csi | Multi-nodo · acceso remoto · `ReadWriteMany` |
+| `local` | PVs con `hostPath` + `nodeAffinity` | Single-node · NAS = nodo k8s · sin overhead de red |
 
-2. **Generar manifests PV/PVC** — para exponer shares NFS como PersistentVolumes Kubernetes. Usa el patrón existente del cluster: `storageClassName: ""`, `nfsvers=4.1`, `noacl`, `nolock`. Los manifests generados van a `./generated/k8s/`.
+**Opciones del módulo:**
 
-3. **Guía Longhorn** — instrucciones para instalar Longhorn (dashboard de storage nativo Kubernetes) vía Helm en el GitOps existente.
+1. **Cambiar modo de storage** — actualiza `cluster-vars.yaml` y hace push para que Flux reconcilie
+2. **Generar manifests PV/PVC** — crea YAMLs en `./generated/k8s/` listos para `kubectl apply`
+3. **Actualizar NFS_PATH** — cambia solo la ruta del share sin cambiar de modo
+4. **Guía Longhorn** — instrucciones para instalar Longhorn vía Helm/GitOps
 
-**Para activar:**
+**Variables clave en `.env`:**
 
 ```bash
-# Edita modules/03-k8s-integration/setup.sh
-# Busca la línea:  return 0
-# Y elimínala o coméntala
-nano modules/03-k8s-integration/setup.sh
+K8S_HOMELAB_PATH=/home/jgomez/k8-homelab
+K8S_PV_NAMESPACE=file-share
+K8S_MANIFESTS_OUTPUT=./generated/k8s
+K8S_STORAGE_MODE=nfs   # nfs | local
+```
+
+**Requisito:** `yq` instalado (`apt install yq` o `snap install yq`) para el patch de `cluster-vars.yaml`.
+
+---
+
+### Módulo 4 — NFS Sync
+
+Copia periódica desde un servidor NFS remoto al almacenamiento local usando `rsync`. Útil para replicar contenido de otro NAS o servidor de archivos hacia el pool local.
+
+**Qué hace:**
+
+1. Instala `nfs-common` y `rsync`
+2. Crea el punto de montaje local y añade entrada `noauto` en `/etc/fstab`
+3. Genera el script de runtime `/var/lib/nas-setup/scripts/nfs-sync.sh`
+4. Programa un systemd timer (o cron) para sync diario
+
+**Comportamiento del script de sync:**
+
+- Monta el NFS remoto si no está montado — lo desmonta al terminar
+- Ejecuta `rsync` del origen al destino local
+- rsync exit 24 (archivos desaparecidos en tránsito) se trata como éxito — es normal en NFS
+- Log completo en el journal: `journalctl -t nfs-sync -f`
+
+**Variables clave en `.env`:**
+
+```bash
+NFS_SYNC_REMOTE_HOST=192.168.0.x        # IP del servidor NFS remoto
+NFS_SYNC_REMOTE_PATH=/shared             # path exportado en el remoto
+NFS_SYNC_MOUNT_POINT=/mnt/nfs-remote    # dónde se monta localmente
+NFS_SYNC_DEST_DIR=/mergerfs/pool/backup # destino local de la copia
+NFS_SYNC_HOUR=2                          # hora del sync diario (0-23)
+NFS_SYNC_RSYNC_OPTS="--archive --delete --hard-links --numeric-ids"
+NFS_SYNC_MOUNT_OPTIONS="ro,hard,timeo=30,retrans=3,nfsvers=4"
+NFS_SYNC_BW_LIMIT=0                      # límite KB/s (0 = sin límite)
+NFS_SYNC_EXCLUDES=.Trash*:*.tmp          # patrones a excluir, separados por ":"
+```
+
+**Uso manual:**
+
+```bash
+# Ejecutar sync ahora
+sudo bash /var/lib/nas-setup/scripts/nfs-sync.sh
+
+# Ver logs en tiempo real
+journalctl -t nfs-sync -f
+
+# Ver próxima ejecución programada
+systemctl list-timers nfs-sync.timer
 ```
 
 ---
@@ -234,6 +294,8 @@ cp .env.example .env
 |----------|---------|--------|-------------|
 | `NFS_SHARE_DIR` | `/nfs/kahunaz` | 1 | Share NFS principal (usada por k8s CSI) |
 | `NFS_EXTRA_DIRS` | _(vacío)_ | 1 | Shares adicionales separadas por `:` |
+| `NFS_POOL_LINK` | _(vacío)_ | 1 | Symlink del pool MergerFS para NFS |
+| `SMB_POOL_LINK` | _(vacío)_ | 1 | Symlink del pool MergerFS para Samba |
 | `NFS_ALLOWED_NETWORK` | `192.168.0.0/24` | 1 | Red autorizada para montar NFS |
 | `NFS_EXPORT_OPTIONS` | `rw,sync,no_subtree_check,no_root_squash` | 1 | Opciones de export |
 | `SAMBA_WORKGROUP` | `WORKGROUP` | 1 | Nombre del grupo de trabajo |
@@ -252,6 +314,16 @@ cp .env.example .env
 | `K8S_HOMELAB_PATH` | `/home/jgomez/k8-homelab` | 3 | Ruta al repo k8-homelab |
 | `K8S_PV_NAMESPACE` | `file-share` | 3 | Namespace para PVCs generados |
 | `K8S_MANIFESTS_OUTPUT` | `./generated/k8s` | 3 | Destino de manifests YAML |
+| `K8S_STORAGE_MODE` | `nfs` | 3 | Modo de storage: `nfs` o `local` |
+| `NFS_SYNC_REMOTE_HOST` | _(requerido)_ | 4 | IP del servidor NFS remoto |
+| `NFS_SYNC_REMOTE_PATH` | _(requerido)_ | 4 | Path exportado en el remoto |
+| `NFS_SYNC_MOUNT_POINT` | `/mnt/nfs-remote` | 4 | Punto de montaje local del remoto |
+| `NFS_SYNC_DEST_DIR` | _(requerido)_ | 4 | Directorio local destino del sync |
+| `NFS_SYNC_HOUR` | `2` | 4 | Hora del sync diario (0-23) |
+| `NFS_SYNC_RSYNC_OPTS` | `--archive --delete --hard-links --numeric-ids` | 4 | Flags rsync |
+| `NFS_SYNC_MOUNT_OPTIONS` | `ro,hard,timeo=30,retrans=3,nfsvers=4` | 4 | Opciones de montaje NFS |
+| `NFS_SYNC_BW_LIMIT` | `0` | 4 | Límite de ancho de banda en KB/s (0 = sin límite) |
+| `NFS_SYNC_EXCLUDES` | _(vacío)_ | 4 | Patrones a excluir del sync, separados por `:` |
 | `LOG_LEVEL` | `INFO` | todos | `INFO` o `DEBUG` |
 | `FORCE_RERUN` | `0` | todos | `1` para ignorar estado y re-ejecutar todo |
 
@@ -259,7 +331,7 @@ cp .env.example .env
 
 ## Tests de verificación
 
-Cada módulo tiene su test independiente en `tests/`. También se ejecutan desde el menú principal (opción 4).
+Cada módulo tiene su test independiente en `tests/`. También se ejecutan desde el menú principal (opción 5).
 
 ```bash
 # Test individual
@@ -290,8 +362,8 @@ La opción más ligera para administrar el sistema operativo del servidor direct
 # Instalar en el servidor NAS
 apt install cockpit cockpit-storaged
 
-# Acceder en el navegador
-http://192.168.0.197:9090
+# Acceder en el navegador (sustituye <IP_NAS> por la IP de tu servidor)
+http://<IP_NAS>:9090
 ```
 
 - No conflicta con k3s ni con los servicios existentes
@@ -369,7 +441,7 @@ Alternativa ligera para workloads que no van en Kubernetes.
 
 ```bash
 curl -fsSL https://get.casaos.io | bash
-# Acceso: http://192.168.0.197 (puerto 80)
+# Acceso: http://<IP_NAS> (puerto 80)
 ```
 
 Corre en Docker y no conflicta con k3s (usan diferentes runtimes de contenedor).
@@ -384,12 +456,15 @@ Archivos que los scripts crean o modifican:
 |---------|--------|-------------|
 | `/etc/exports.d/nas-setup.exports` | 1 | Exports NFS (no toca `/etc/exports` del sistema) |
 | `/etc/samba/smb.conf` | 1 | Configuración Samba (backup automático en `.bak.*`) |
-| `/etc/fstab` | 2 | Solo se añaden líneas (nunca se elimina nada) |
+| `/etc/fstab` | 2, 4 | Solo se añaden líneas (nunca se elimina nada) |
 | `/etc/snapraid.conf` | 2 | Configuración SnapRAID (backup automático) |
-| `/etc/systemd/system/snapraid-*.{service,timer}` | 2 | 6 unidades systemd |
+| `/etc/systemd/system/snapraid-*.{service,timer}` | 2 | 6 unidades systemd para SnapRAID |
+| `/etc/systemd/system/nfs-sync.{service,timer}` | 4 | 2 unidades systemd para NFS Sync |
 | `/var/lib/nas-setup/state/` | todos | Sentinels de idempotencia |
 | `/var/lib/nas-setup/scripts/snapraid-sync-safe.sh` | 2 | Script de sync con safety gate |
+| `/var/lib/nas-setup/scripts/nfs-sync.sh` | 4 | Script de sync NFS remoto → local |
 | `/var/cache/nas-setup/` | 2 | Caché de binarios descargados (.deb) |
+| `./generated/k8s/` | 3 | Manifests PV/PVC generados |
 | `./logs/nas-setup-YYYYMMDD-HHMMSS.log` | todos | Log de sesión |
 
 ---
@@ -460,11 +535,25 @@ snapraid status
 snapraid fix -d dN   # donde N es el número del disco DATA fallido
 ```
 
+### NFS Sync: el montaje remoto falla
+
+```bash
+# Verificar que el host remoto es accesible
+ping <NFS_SYNC_REMOTE_HOST>
+showmount -e <NFS_SYNC_REMOTE_HOST>
+
+# Montar manualmente para diagnosticar
+mount -t nfs -o ro,nfsvers=4 <NFS_SYNC_REMOTE_HOST>:<NFS_SYNC_REMOTE_PATH> /mnt/nfs-remote
+
+# Ver logs del último sync
+journalctl -t nfs-sync --since "1 hour ago"
+```
+
 ### Re-ejecutar un módulo desde cero
 
 ```bash
 # Opción 1: desde el menú
-sudo bash install.sh  # → opción 5 (Resetear estado)
+sudo bash install.sh  # → opción 6 (Resetear estado)
 
 # Opción 2: variable de entorno
 FORCE_RERUN=1 sudo bash install.sh
@@ -472,6 +561,9 @@ FORCE_RERUN=1 sudo bash install.sh
 # Opción 3: limpiar estado de un módulo específico
 rm /var/lib/nas-setup/state/nfs_configured
 rm /var/lib/nas-setup/state/samba_configured
+rm /var/lib/nas-setup/state/nfs_sync_mount
+rm /var/lib/nas-setup/state/nfs_sync_script
+rm /var/lib/nas-setup/state/nfs_sync_schedule
 ```
 
 ### Logs
@@ -483,4 +575,7 @@ ls -t logs/ | head -1 | xargs -I{} cat logs/{}
 # Logs del sistema para SnapRAID
 journalctl -u snapraid-sync -f
 journalctl -u snapraid-scrub --since "7 days ago"
+
+# Logs del NFS Sync
+journalctl -t nfs-sync -f
 ```

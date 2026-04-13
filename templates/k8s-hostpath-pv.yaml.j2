@@ -1,0 +1,50 @@
+# Generado por nas-setup módulo 3 — aplicar con: kubectl apply -f <archivo>
+# MODO: local (hostPath) — el pod accede directamente al sistema de archivos del nodo
+# NOTA: Solo válido en clusters single-node. No usar en clusters multi-nodo.
+#
+# Para aplicar manualmente:
+#   kubectl apply -f este-archivo.yaml
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: pv-${PV_NAME}
+  labels:
+    nas-setup: "true"
+    share: "${PV_NAME}"
+    storage-mode: "local"
+spec:
+  capacity:
+    storage: ${PV_SIZE}
+  accessModes:
+    - ReadWriteMany
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: ""
+  hostPath:
+    path: ${LOCAL_PATH}
+    type: DirectoryOrCreate
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: kubernetes.io/hostname
+              operator: In
+              values:
+                - ${K8S_NODE_NAME}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: pvc-${PV_NAME}
+  namespace: ${K8S_PV_NAMESPACE}
+  labels:
+    nas-setup: "true"
+    storage-mode: "local"
+spec:
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: ${PV_SIZE}
+  storageClassName: ""
+  volumeName: pv-${PV_NAME}

@@ -1,9 +1,9 @@
 [Unit]
-Description=NFS Sync Timer — diario a las ${NFS_SYNC_HOUR}:00
+Description=NFS Sync Timer — ${NFS_SYNC_SCHEDULE_LABEL}
 Requires=nfs-sync.service
 
 [Timer]
-OnCalendar=*-*-* ${NFS_SYNC_HOUR}:00:00
+OnCalendar=${NFS_SYNC_ONCALENDAR}
 # Ejecutar si se perdió la ventana (ej: sistema apagado)
 Persistent=true
 # Variación aleatoria para evitar picos de carga exactos

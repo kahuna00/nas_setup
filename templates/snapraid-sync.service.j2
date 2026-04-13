@@ -4,8 +4,9 @@ After=network.target
 
 [Service]
 Type=oneshot
-# Primero ejecuta diff para verificar que no haya cambios excesivos
-ExecStartPre=/usr/bin/snapraid diff
+# Ejecuta diff para loggear diferencias en el journal (- ignora su exit code;
+# el script de sync hace su propia comprobación de umbral)
+ExecStartPre=-/usr/bin/snapraid diff
 # Luego ejecuta el script de sincronización (incluye comprobación de umbral)
 ExecStart=/bin/bash /var/lib/nas-setup/scripts/snapraid-sync-safe.sh
 Nice=19

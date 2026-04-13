@@ -8,9 +8,30 @@ NAS_SETUP_DIR="$(dirname "$(dirname "$(dirname "${BASH_SOURCE[0]}")")")"
 source "${NAS_SETUP_DIR}/modules/01-nfs-samba/nfs.sh"
 source "${NAS_SETUP_DIR}/modules/01-nfs-samba/samba.sh"
 source "${NAS_SETUP_DIR}/modules/01-nfs-samba/validate.sh"
+source "${NAS_SETUP_DIR}/modules/01-nfs-samba/reconfig.sh"
 
 setup_nfs_samba() {
     print_header "MÓDULO 1: NFS + SAMBA"
+
+    echo -e "  ${BOLD}¿Qué deseas hacer?${RESET}"
+    echo ""
+    echo -e "  ${CYAN}[1]${RESET} Configuración completa  ${DIM}(primera vez o re-instalar)${RESET}"
+    echo -e "  ${CYAN}[2]${RESET} Reconfigurar parámetros  ${DIM}(cambiar IPs, shares, contraseña… sin reinstalar)${RESET}"
+    echo -e "  ${CYAN}[0]${RESET} Volver"
+    echo ""
+
+    local choice
+    read -rp "$(echo -e "  ${BOLD}Opción: ${RESET}")" choice
+
+    case "$choice" in
+        1) _setup_nfs_samba_full ;;
+        2) reconfig_nfs_samba ;;
+        0) return 0 ;;
+        *) log_warn "Opción inválida" ;;
+    esac
+}
+
+_setup_nfs_samba_full() {
 
     # ── Validar variables requeridas ───────────────────────────────────────────
     validate_env \

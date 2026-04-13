@@ -70,3 +70,28 @@ split_colon_var() {
     local -n result_ref="$2"
     IFS=':' read -ra result_ref <<< "${!var}"
 }
+
+# Update or add a variable in .env and export it into the current process
+# Usage: set_env_var KEY VALUE
+set_env_var() {
+    local key="$1"
+    local value="$2"
+    local env_file="${NAS_SETUP_DIR}/.env"
+
+    if grep -q "^${key}=" "$env_file" 2>/dev/null; then
+        sed -i "s|^${key}=.*|${key}=${value}|" "$env_file"
+    else
+        echo "${key}=${value}" >> "$env_file"
+    fi
+    export "${key}=${value}"
+}
+
+# Prompt user for a value, showing the current one; Enter keeps current
+# Usage: prompt_env_value "Label text" "current_value"  → echoes chosen value
+prompt_env_value() {
+    local label="$1"
+    local current="$2"
+    local result
+    read -rp "$(echo -e "  ${BOLD}${label}${RESET} ${DIM}[actual: ${current}]${RESET}: ")" result
+    echo "${result:-$current}"
+}

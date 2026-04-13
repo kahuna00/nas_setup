@@ -1,11 +1,10 @@
 [Unit]
-Description=SnapRAID Sync Timer — diario a las ${SNAPRAID_SYNC_HOUR}:00
+Description=SnapRAID Sync Timer — ${SNAPRAID_SYNC_SCHEDULE_LABEL}
 Requires=snapraid-sync.service
 
 [Timer]
-# Diario a la hora configurada (0-23)
-OnCalendar=*-*-* ${SNAPRAID_SYNC_HOUR}:00:00
-# Ejecutar inmediatamente si se perdió la ventana (ej: sistema apagado)
+OnCalendar=${SNAPRAID_SYNC_ONCALENDAR}
+# Ejecutar si se perdió la ventana (ej: sistema apagado)
 Persistent=true
 # Pequeña variación aleatoria para evitar picos de carga exactos
 RandomizedDelaySec=300

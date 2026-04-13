@@ -3,11 +3,13 @@
 # Uso: sudo bash install.sh
 #
 # Módulos disponibles:
-#   1. NFS + Samba        — Configura shares de red desde .env
+#   1. NFS + Samba         — Configura shares de red desde .env
 #   2. MergerFS + SnapRAID — Setup guiado de pool + paridad
-#   3. K8s Integration    — [EN DESARROLLO] Integración con cluster Kubernetes
-#   4. NFS Sync           — Copia periódica NFS remoto → local
-#   5. Tests              — Verificación post-instalación
+#   3. K8s Integration     — Integración con cluster Kubernetes (NFS ↔ local)
+#   4. NFS Sync            — Copia periódica NFS remoto → local
+#   5. Schedule Config     — Cambia horarios de SnapRAID y NFS Sync
+#   6. SMART Report        — Salud, health %, TBW y temperatura de discos
+#   7. Tests               — Verificación post-instalación
 #
 # Requisitos: Debian/Ubuntu, ARM64 o amd64, root
 
@@ -78,16 +80,22 @@ show_menu() {
     echo -e "      Setup guiado: selección de discos, formateo, paridad y schedule"
     echo -e "      (Protege tus datos con paridad + pool unificado de almacenamiento)"
     echo ""
-    echo -e "  ${YELLOW}[3]${RESET} ${BOLD}Kubernetes Integration${RESET} ${YELLOW}[EN DESARROLLO]${RESET}"
+    echo -e "  ${CYAN}[3]${RESET} ${BOLD}Kubernetes Integration${RESET}"
     echo -e "      Integra el NAS con tu cluster k3s (PVs, cluster-vars, Longhorn)"
     echo ""
     echo -e "  ${CYAN}[4]${RESET} ${BOLD}NFS Sync (remoto → local)${RESET}"
     echo -e "      Copia periódica desde un NFS remoto al almacenamiento local (rsync + timer)"
     echo ""
-    echo -e "  ${CYAN}[5]${RESET} ${BOLD}Ejecutar Tests${RESET}"
+    echo -e "  ${CYAN}[5]${RESET} ${BOLD}Configurar schedules${RESET}"
+    echo -e "      Cambia horarios de SnapRAID y NFS Sync sin re-ejecutar el módulo completo"
+    echo ""
+    echo -e "  ${CYAN}[6]${RESET} ${BOLD}Reporte SMART${RESET}"
+    echo -e "      Salud, health %, TBW, temperatura y horas de todos los discos"
+    echo ""
+    echo -e "  ${CYAN}[7]${RESET} ${BOLD}Ejecutar Tests${RESET}"
     echo -e "      Verifica NFS, Samba y MergerFS post-instalación"
     echo ""
-    echo -e "  ${CYAN}[6]${RESET} ${BOLD}Resetear estado${RESET} (permite re-ejecutar módulos ya configurados)"
+    echo -e "  ${CYAN}[8]${RESET} ${BOLD}Resetear estado${RESET} (permite re-ejecutar módulos ya configurados)"
     echo ""
     echo -e "  ${DIM}[0]${RESET} Salir"
     echo ""
@@ -157,9 +165,17 @@ main() {
                 setup_nfs_sync
                 ;;
             5)
-                run_tests
+                source "${NAS_SETUP_DIR}/modules/05-schedule-config/setup.sh"
+                setup_schedule_config
                 ;;
             6)
+                source "${NAS_SETUP_DIR}/modules/06-smart-report/setup.sh"
+                setup_smart_report
+                ;;
+            7)
+                run_tests
+                ;;
+            8)
                 reset_state
                 ;;
             0|q|Q|exit|quit)
