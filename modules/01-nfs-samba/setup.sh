@@ -27,9 +27,9 @@ setup_nfs() {
     read -rp "$(echo -e "  ${BOLD}Opción: ${RESET}")" choice
 
     case "$choice" in
-        1) _install_nfs ;;
-        2) reconfig_nfs ;;
-        3) disable_nfs ;;
+        1) _install_nfs || true ;;
+        2) reconfig_nfs || true ;;
+        3) disable_nfs || true ;;
         0) return 0 ;;
         *) log_warn "Opción inválida" ;;
     esac
@@ -90,9 +90,9 @@ setup_samba() {
     read -rp "$(echo -e "  ${BOLD}Opción: ${RESET}")" choice
 
     case "$choice" in
-        1) _install_samba ;;
-        2) reconfig_samba ;;
-        3) disable_samba ;;
+        1) _install_samba || true ;;
+        2) reconfig_samba || true ;;
+        3) disable_samba || true ;;
         0) return 0 ;;
         *) log_warn "Opción inválida" ;;
     esac

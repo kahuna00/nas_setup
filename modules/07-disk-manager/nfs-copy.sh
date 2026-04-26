@@ -129,8 +129,8 @@ dm_copy_from_nfs() {
     local total_bytes=0
     for f in "${SELECTED_FOLDERS[@]}"; do
         local b
-        b=$(du -sb "${local_mp}/${f}" 2>/dev/null | awk '{print $1}')
-        b="${b//[^0-9]/}"   # eliminar cualquier caracter no numérico (saltos de línea, espacios)
+        b=$(du -sb "${local_mp}/${f}" 2>/dev/null | awk '{print $1}' || true)
+        b="${b//[^0-9]/}"
         total_bytes=$(( total_bytes + ${b:-0} ))
     done
     local total_human
@@ -295,7 +295,7 @@ dm_copy_from_samba() {
     local total_bytes=0
     for f in "${SELECTED_FOLDERS[@]}"; do
         local b
-        b=$(du -sb "${local_mp}/${f}" 2>/dev/null | awk '{print $1}')
+        b=$(du -sb "${local_mp}/${f}" 2>/dev/null | awk '{print $1}' || true)
         b="${b//[^0-9]/}"
         total_bytes=$(( total_bytes + ${b:-0} ))
     done

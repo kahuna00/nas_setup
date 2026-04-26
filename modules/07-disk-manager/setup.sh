@@ -32,10 +32,10 @@ setup_disk_manager() {
         read -rp "$(echo -e "  ${BOLD}Opción: ${RESET}")" choice
 
         case "$choice" in
-            1) dm_format_disk ;;
-            2) dm_copy_from_nfs ;;
-            3) dm_copy_from_samba ;;
-            4) dm_manage_mounts ;;
+            1) dm_format_disk || true ;;
+            2) dm_copy_from_nfs || true ;;
+            3) dm_copy_from_samba || true ;;
+            4) dm_manage_mounts || true ;;
             0) return 0 ;;
             *) log_warn "Opción inválida" ;;
         esac

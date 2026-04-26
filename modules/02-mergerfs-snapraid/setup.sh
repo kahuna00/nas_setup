@@ -83,8 +83,8 @@ setup_mergerfs() {
     read -rp "$(echo -e "  ${BOLD}Opción: ${RESET}")" choice
 
     case "$choice" in
-        1) _install_mergerfs ;;
-        2) disable_mergerfs ;;
+        1) _install_mergerfs || true ;;
+        2) disable_mergerfs || true ;;
         0) return 0 ;;
         *) log_warn "Opción inválida" ;;
     esac
@@ -126,8 +126,8 @@ setup_snapraid() {
     read -rp "$(echo -e "  ${BOLD}Opción: ${RESET}")" choice
 
     case "$choice" in
-        1) _install_snapraid ;;
-        2) disable_snapraid ;;
+        1) _install_snapraid || true ;;
+        2) disable_snapraid || true ;;
         0) return 0 ;;
         *) log_warn "Opción inválida" ;;
     esac
