@@ -88,9 +88,12 @@ render_exports() {
 
 _create_pool_nfs_link() {
     [[ -z "${NFS_POOL_LINK:-}" ]] && return 0
-    [[ -z "${MERGERFS_POOL_PATH:-}" ]] && return 0
 
-    local target="${MERGERFS_POOL_PATH}/nfs"
+    local target="${NFS_POOL_LINK_TARGET:-${MERGERFS_POOL_PATH:-}/nfs}"
+    if [[ -z "$target" || "$target" == "/nfs" ]]; then
+        log_error "NFS_POOL_LINK_TARGET no configurado y MERGERFS_POOL_PATH vacío — define NFS_POOL_LINK_TARGET en .env"
+        return 1
+    fi
     mkdir -p "$target"
     chown "${SAMBA_USER:-nasuser}:${SAMBA_USER:-nasuser}" "$target"
     chmod 775 "$target"

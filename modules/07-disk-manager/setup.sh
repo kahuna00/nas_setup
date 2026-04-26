@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # modules/07-disk-manager/setup.sh — Módulo 7: Gestión de discos
-# Opciones: formatear, copiar desde NFS remoto, gestionar montaje y symlinks
+# Opciones: formatear, copiar desde NFS/Samba remoto, gestionar montaje y symlinks
 
 NAS_SETUP_DIR="$(dirname "$(dirname "$(dirname "${BASH_SOURCE[0]}")")")"
 
@@ -17,9 +17,12 @@ setup_disk_manager() {
         echo -e "      Formatea un disco, elige punto de montaje y lo registra en fstab"
         echo ""
         echo -e "  ${CYAN}[2]${RESET} ${BOLD}Copiar desde NFS remoto${RESET}"
-        echo -e "      Selecciona carpetas del NFS remoto (${NFS_SYNC_REMOTE_HOST:-remoto}) y cópialas aquí"
+        echo -e "      Selecciona carpetas del NFS remoto (${NFS_SYNC_REMOTE_HOST:-?}) y cópialas aquí"
         echo ""
-        echo -e "  ${CYAN}[3]${RESET} ${BOLD}Gestionar montaje y acceso${RESET}"
+        echo -e "  ${CYAN}[3]${RESET} ${BOLD}Copiar desde Samba remoto${RESET}"
+        echo -e "      Selecciona carpetas de una share CIFS/SMB y cópialas aquí"
+        echo ""
+        echo -e "  ${CYAN}[4]${RESET} ${BOLD}Gestionar montaje y acceso${RESET}"
         echo -e "      Montar · Desmontar · Crear symlink para compartir vía NFS / Samba"
         echo ""
         echo -e "  ${DIM}[0]${RESET} Volver"
@@ -31,7 +34,8 @@ setup_disk_manager() {
         case "$choice" in
             1) dm_format_disk ;;
             2) dm_copy_from_nfs ;;
-            3) dm_manage_mounts ;;
+            3) dm_copy_from_samba ;;
+            4) dm_manage_mounts ;;
             0) return 0 ;;
             *) log_warn "Opción inválida" ;;
         esac

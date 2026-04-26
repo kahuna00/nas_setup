@@ -12,7 +12,7 @@ _show_nfs_params() {
     echo -e "  ${CYAN}NFS — parámetros actuales:${RESET}"
     echo -e "    Share principal   : ${BOLD}${NFS_SHARE_DIR:-/nfs/kahunaz}${RESET}"
     echo -e "    Shares extra      : ${BOLD}${NFS_EXTRA_DIRS:-(ninguna)}${RESET}"
-    echo -e "    Symlink NFS pool  : ${BOLD}${NFS_POOL_LINK:-(no configurado)}${RESET}"
+    echo -e "    Symlink NFS pool  : ${BOLD}${NFS_POOL_LINK:-(no configurado)}${RESET} → ${BOLD}${NFS_POOL_LINK_TARGET:-(MergerFS pool)}${RESET}"
     echo -e "    Red permitida     : ${BOLD}${NFS_ALLOWED_NETWORK:-192.168.0.0/24}${RESET}"
     echo -e "    Opciones export   : ${BOLD}${NFS_EXPORT_OPTIONS:-rw,sync,no_subtree_check,no_root_squash}${RESET}"
     echo ""
@@ -26,7 +26,7 @@ _show_samba_params() {
     echo -e "    Nombre share      : ${BOLD}${SAMBA_SHARE_NAME:-NAS}${RESET}"
     echo -e "    Workgroup         : ${BOLD}${SAMBA_WORKGROUP:-WORKGROUP}${RESET}"
     echo -e "    Log level         : ${BOLD}${SAMBA_LOG_LEVEL:-1}${RESET}"
-    echo -e "    Symlink SMB pool  : ${BOLD}${SMB_POOL_LINK:-(no configurado)}${RESET}"
+    echo -e "    Symlink SMB pool  : ${BOLD}${SMB_POOL_LINK:-(no configurado)}${RESET} → ${BOLD}${SMB_POOL_LINK_TARGET:-(MergerFS pool)}${RESET}"
     echo ""
 }
 
@@ -85,8 +85,11 @@ reconfig_nfs() {
     v=$(prompt_env_value "Shares extra, separadas por ':' (vacío=ninguna)" "${NFS_EXTRA_DIRS:-}")
     [[ "$v" != "${NFS_EXTRA_DIRS:-}" ]] && { set_env_var NFS_EXTRA_DIRS "$v"; changed=1; }
 
-    v=$(prompt_env_value "Symlink NFS pool (vacío=deshabilitar)" "${NFS_POOL_LINK:-}")
+    v=$(prompt_env_value "Symlink NFS pool — ruta del enlace (vacío=deshabilitar)" "${NFS_POOL_LINK:-}")
     [[ "$v" != "${NFS_POOL_LINK:-}" ]] && { set_env_var NFS_POOL_LINK "$v"; changed=1; }
+
+    v=$(prompt_env_value "Destino del symlink NFS (NFS_POOL_LINK_TARGET, vacío=usar MergerFS pool)" "${NFS_POOL_LINK_TARGET:-}")
+    [[ "$v" != "${NFS_POOL_LINK_TARGET:-}" ]] && { set_env_var NFS_POOL_LINK_TARGET "$v"; changed=1; }
 
     v=$(prompt_env_value "Red permitida (NFS_ALLOWED_NETWORK)" "${NFS_ALLOWED_NETWORK:-192.168.0.0/24}")
     [[ "$v" != "${NFS_ALLOWED_NETWORK:-192.168.0.0/24}" ]] && { set_env_var NFS_ALLOWED_NETWORK "$v"; changed=1; }
@@ -125,8 +128,11 @@ reconfig_samba() {
     v=$(prompt_env_value "Log level, 0-3 (SAMBA_LOG_LEVEL)" "${SAMBA_LOG_LEVEL:-1}")
     [[ "$v" != "${SAMBA_LOG_LEVEL:-1}" ]] && { set_env_var SAMBA_LOG_LEVEL "$v"; changed=1; }
 
-    v=$(prompt_env_value "Symlink SMB pool (vacío=deshabilitar)" "${SMB_POOL_LINK:-}")
+    v=$(prompt_env_value "Symlink SMB pool — ruta del enlace (vacío=deshabilitar)" "${SMB_POOL_LINK:-}")
     [[ "$v" != "${SMB_POOL_LINK:-}" ]] && { set_env_var SMB_POOL_LINK "$v"; changed=1; }
+
+    v=$(prompt_env_value "Destino del symlink SMB (SMB_POOL_LINK_TARGET, vacío=usar MergerFS pool)" "${SMB_POOL_LINK_TARGET:-}")
+    [[ "$v" != "${SMB_POOL_LINK_TARGET:-}" ]] && { set_env_var SMB_POOL_LINK_TARGET "$v"; changed=1; }
 
     # Contraseña — siempre preguntar explícitamente ya que no mostramos el valor actual
     local new_pass

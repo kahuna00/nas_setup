@@ -28,10 +28,10 @@ render_smb_conf() {
 
     envsubst < "${TEMPLATE_DIR}/smb.conf.j2" > "$tmp_conf"
 
-    # Append extra shares if configured
-    if [[ -n "${NFS_EXTRA_DIRS:-}" ]]; then
+    # Append extra shares if configured (SAMBA_EXTRA_DIRS is independent of NFS_EXTRA_DIRS)
+    if [[ -n "${SAMBA_EXTRA_DIRS:-}" ]]; then
         local extras=()
-        split_colon_var NFS_EXTRA_DIRS extras
+        split_colon_var SAMBA_EXTRA_DIRS extras
         local idx=2
         for extra_dir in "${extras[@]}"; do
             [[ -z "$extra_dir" ]] && continue
@@ -53,8 +53,8 @@ EOF
         done
     fi
 
-    # Add dedicated pool share if SMB_POOL_LINK is configured
-    if [[ -n "${SMB_POOL_LINK:-}" ]] && [[ -n "${MERGERFS_POOL_PATH:-}" ]]; then
+    # Add dedicated pool share if SMB_POOL_LINK is configured and not already covered by SAMBA_SHARE_DIR
+    if [[ -n "${SMB_POOL_LINK:-}" ]] && [[ "${SMB_POOL_LINK}" != "${SAMBA_SHARE_DIR:-}" ]] && [[ -n "${MERGERFS_POOL_PATH:-}" ]]; then
         local pool_share_name
         pool_share_name=$(basename "$SMB_POOL_LINK" | tr '[:lower:]' '[:upper:]')
         cat >> "$tmp_conf" << EOF
@@ -89,9 +89,15 @@ EOF
 
 _create_pool_smb_link() {
     [[ -z "${SMB_POOL_LINK:-}" ]] && return 0
-    [[ -z "${MERGERFS_POOL_PATH:-}" ]] && return 0
 
-    local target="${MERGERFS_POOL_PATH}/smb"
+    # SMB_POOL_LINK_TARGET configures where the symlink points.
+    # Falls back to ${MERGERFS_POOL_PATH}/smb for backwards compatibility.
+    local target="${SMB_POOL_LINK_TARGET:-${MERGERFS_POOL_PATH:-}/smb}"
+    if [[ -z "$target" || "$target" == "/smb" ]]; then
+        log_error "SMB_POOL_LINK_TARGET no configurado y MERGERFS_POOL_PATH vacío — define SMB_POOL_LINK_TARGET en .env"
+        return 1
+    fi
+
     mkdir -p "$target"
     chown "${SAMBA_USER:-nasuser}:${SAMBA_USER:-nasuser}" "$target"
     chmod 775 "$target"

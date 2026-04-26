@@ -51,7 +51,7 @@ _install_nfs() {
     [[ -n "${NFS_EXTRA_DIRS:-}" ]] && \
         echo -e "  Shares extra    : ${CYAN}${NFS_EXTRA_DIRS}${RESET}"
     [[ -n "${NFS_POOL_LINK:-}" ]] && \
-        echo -e "  Symlink pool    : ${CYAN}${NFS_POOL_LINK}${RESET} → ${MERGERFS_POOL_PATH:-/mergerfs/pool}"
+        echo -e "  Symlink pool    : ${CYAN}${NFS_POOL_LINK}${RESET} → ${NFS_POOL_LINK_TARGET:-${MERGERFS_POOL_PATH:-/mergerfs/pool}/nfs}"
     echo ""
 
     confirm "¿Aplicar configuración NFS?" "Y" || { log_warn "Cancelado"; return 0; }
@@ -117,7 +117,7 @@ _install_samba() {
     echo -e "  Nombre share     : ${CYAN}${SAMBA_SHARE_NAME}${RESET}"
     echo -e "  Usuario          : ${CYAN}${SAMBA_USER}${RESET}"
     [[ -n "${SMB_POOL_LINK:-}" ]] && \
-        echo -e "  Symlink pool     : ${CYAN}${SMB_POOL_LINK}${RESET} → ${MERGERFS_POOL_PATH:-/mergerfs/pool}"
+        echo -e "  Symlink pool     : ${CYAN}${SMB_POOL_LINK}${RESET} → ${SMB_POOL_LINK_TARGET:-${MERGERFS_POOL_PATH:-/mergerfs/pool}/smb}"
     echo ""
 
     confirm "¿Aplicar configuración Samba?" "Y" || { log_warn "Cancelado"; return 0; }

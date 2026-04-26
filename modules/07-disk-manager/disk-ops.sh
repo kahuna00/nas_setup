@@ -8,6 +8,69 @@ _DM_DIR="$(dirname "$(dirname "$(dirname "${BASH_SOURCE[0]}")")")"
 declare -g DM_SELECTED_DEV=""
 declare -g DM_SELECTED_MP=""
 
+# ── Selector interactivo de directorio destino ─────────────────────────────────
+# Muestra todos los sistemas de archivos montados con espacio disponible.
+# Resultado en DM_SELECTED_MP.
+_dm_pick_dest_dir() {
+    echo ""
+    echo -e "  ${BOLD}Selecciona el directorio destino:${RESET}"
+    echo ""
+
+    local -a mps=()
+    local idx=1
+
+    printf "  ${BOLD}%-4s %-32s %-10s %-12s %-10s${RESET}\n" \
+        "#" "DIRECTORIO" "TIPO FS" "DISPONIBLE" "TOTAL"
+    printf "  %-4s %-32s %-10s %-12s %-10s\n" \
+        "────" "────────────────────────────────" "──────────" "────────────" "──────────"
+
+    while IFS= read -r mp fstype avail size; do
+        [[ -z "$mp" || "$mp" == "TARGET" ]] && continue
+        # Excluir rutas y tipos de sistema
+        [[ "$mp" =~ ^(/proc|/sys|/dev|/run|/snap|/boot) ]] && continue
+        case "$fstype" in
+            tmpfs|devtmpfs|sysfs|proc|cgroup*|pstore|securityfs|debugfs|\
+            hugetlbfs|mqueue|configfs|fusectl|tracefs|squashfs|efivarfs|bpf|autofs)
+                continue ;;
+        esac
+        [[ -z "$avail" || "$avail" == "-" || "$avail" == "0" ]] && continue
+
+        local color="${RESET}"
+        [[ "$fstype" == *fuse* ]] && color="${CYAN}"
+
+        printf "  ${BOLD}[%-2s]${RESET} %-32s ${DIM}%-10s${RESET} ${color}%-12s${RESET} %-10s\n" \
+            "$idx" "$mp" "$fstype" "$avail" "$size"
+        mps+=("$mp")
+        ((idx++))
+    done < <(findmnt -l --real -o TARGET,FSTYPE,AVAIL,SIZE 2>/dev/null | tail -n +2)
+
+    printf "  ${BOLD}[%-2s]${RESET} Escribir ruta manualmente\n" "$idx"
+    local manual_idx=$idx
+
+    echo ""
+    local sel
+    read -rp "$(echo -e "  ${BOLD}Selecciona destino (0=cancelar): ${RESET}")" sel </dev/tty
+
+    [[ "$sel" == "0" || -z "$sel" ]] && return 1
+
+    if [[ "$sel" == "$manual_idx" ]]; then
+        DM_SELECTED_MP=$(prompt_env_value "Ruta de destino" "/mnt/data1")
+    elif [[ "$sel" =~ ^[0-9]+$ ]] && (( sel >= 1 && sel-1 < ${#mps[@]} )); then
+        DM_SELECTED_MP="${mps[$((sel-1))]}"
+    else
+        log_warn "Selección inválida"
+        return 1
+    fi
+
+    # Subdirectorio opcional dentro del destino elegido
+    echo ""
+    local subdir
+    subdir=$(prompt_env_value "Subdirectorio dentro de ${DM_SELECTED_MP} (Enter=raíz)" "")
+    [[ -n "$subdir" ]] && DM_SELECTED_MP="${DM_SELECTED_MP%/}/${subdir#/}"
+
+    return 0
+}
+
 # ── Helpers de detección ───────────────────────────────────────────────────────
 
 _dm_get_boot_disk() {
