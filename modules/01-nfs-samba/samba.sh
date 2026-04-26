@@ -133,8 +133,10 @@ configure_samba_user() {
     smbpasswd -e "$SAMBA_USER" >> "$LOG_FILE" 2>&1  # ensure enabled
 
     # Ensure the share directory is accessible by the Samba user
-    chown -R "${SAMBA_USER}:${SAMBA_USER}" "$NFS_SHARE_DIR" 2>/dev/null || true
-    chmod 775 "$NFS_SHARE_DIR" 2>/dev/null || true
+    local smb_dir="${SAMBA_SHARE_DIR:-${NFS_SHARE_DIR}}"
+    mkdir -p "$smb_dir"
+    chown -R "${SAMBA_USER}:${SAMBA_USER}" "$smb_dir" 2>/dev/null || true
+    chmod 775 "$smb_dir" 2>/dev/null || true
 
     log_success "Usuario Samba configurado: $SAMBA_USER"
 }
@@ -163,4 +165,22 @@ configure_samba() {
 
     state_mark "samba_configured"
     log_success "Samba configurado correctamente"
+}
+
+disable_samba() {
+    confirm "¿Detener Samba y eliminar smb.conf?" "N" || return 0
+
+    log_info "Deteniendo y deshabilitando smbd/nmbd..."
+    systemctl stop smbd nmbd 2>/dev/null || true
+    systemctl disable smbd nmbd 2>/dev/null || true
+
+    if [[ -f "$SMB_CONF" ]]; then
+        cp "$SMB_CONF" "${SMB_CONF}.bak.$(date +%s)"
+        printf '[global]\n   workgroup = WORKGROUP\n   server string = Samba Server\n' > "$SMB_CONF"
+        log_success "smb.conf reseteado al mínimo"
+    fi
+
+    state_clear "samba_configured"
+    state_clear "samba_installed"
+    log_success "Samba desactivado"
 }

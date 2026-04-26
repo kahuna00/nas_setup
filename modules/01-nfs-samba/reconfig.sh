@@ -113,6 +113,9 @@ reconfig_samba() {
     local changed=0 password_changed=0
     local v
 
+    v=$(prompt_env_value "Ruta del directorio Samba (SAMBA_SHARE_DIR)" "${SAMBA_SHARE_DIR:-${NFS_SHARE_DIR:-/nfs/kahunaz}}")
+    [[ "$v" != "${SAMBA_SHARE_DIR:-${NFS_SHARE_DIR:-/nfs/kahunaz}}" ]] && { set_env_var SAMBA_SHARE_DIR "$v"; changed=1; }
+
     v=$(prompt_env_value "Nombre de la share (SAMBA_SHARE_NAME)" "${SAMBA_SHARE_NAME:-NAS}")
     [[ "$v" != "${SAMBA_SHARE_NAME:-NAS}" ]] && { set_env_var SAMBA_SHARE_NAME "$v"; changed=1; }
 

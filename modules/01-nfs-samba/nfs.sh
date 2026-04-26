@@ -137,3 +137,22 @@ configure_nfs() {
     state_mark "nfs_configured"
     log_success "NFS configurado correctamente"
 }
+
+disable_nfs() {
+    confirm "¿Detener NFS y eliminar el archivo de exports?" "N" || return 0
+
+    log_info "Deteniendo y deshabilitando nfs-server..."
+    systemctl stop nfs-server 2>/dev/null || true
+    systemctl disable nfs-server 2>/dev/null || true
+
+    if [[ -f "$EXPORTS_FILE" ]]; then
+        cp "$EXPORTS_FILE" "${EXPORTS_FILE}.bak.$(date +%s)"
+        rm -f "$EXPORTS_FILE"
+        exportfs -ra 2>/dev/null || true
+        log_success "Exports eliminados"
+    fi
+
+    state_clear "nfs_configured"
+    state_clear "nfs_installed"
+    log_success "NFS desactivado"
+}

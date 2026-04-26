@@ -164,3 +164,24 @@ configure_mergerfs() {
 
     log_success "MergerFS configurado en: ${MERGERFS_POOL_PATH}"
 }
+
+disable_mergerfs() {
+    confirm "¿Desmontar MergerFS y eliminar entradas de fstab? (los datos en los discos NO se borran)" "N" || return 0
+
+    local pool="${MERGERFS_POOL_PATH:-/mergerfs/pool}"
+
+    if mountpoint -q "$pool" 2>/dev/null; then
+        log_info "Desmontando pool MergerFS: $pool"
+        umount "$pool" || log_warn "No se pudo desmontar $pool — puede haber procesos usándolo"
+    fi
+
+    if grep -q "mergerfs" /etc/fstab 2>/dev/null; then
+        cp /etc/fstab "/etc/fstab.bak.$(date +%s)"
+        sed -i '/mergerfs/d' /etc/fstab
+        log_success "Entradas MergerFS eliminadas de /etc/fstab"
+    fi
+
+    state_clear "mergerfs_installed"
+    state_clear "mergerfs_fstab"
+    log_success "MergerFS desactivado (datos intactos en los discos individuales)"
+}

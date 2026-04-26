@@ -172,3 +172,35 @@ configure_snapraid() {
 
     log_success "SnapRAID configurado"
 }
+
+disable_snapraid() {
+    confirm "¿Detener timers SnapRAID y eliminar configuración?" "N" || return 0
+
+    log_info "Deteniendo y deshabilitando timers SnapRAID..."
+    for unit in snapraid-sync.timer snapraid-scrub.timer snapraid-smart.timer \
+                snapraid-sync.service snapraid-scrub.service snapraid-smart.service; do
+        systemctl stop "$unit" 2>/dev/null || true
+        systemctl disable "$unit" 2>/dev/null || true
+    done
+
+    local unit_dir="/etc/systemd/system"
+    for unit_file in "${unit_dir}"/snapraid-*.service "${unit_dir}"/snapraid-*.timer; do
+        [[ -f "$unit_file" ]] || continue
+        cp "$unit_file" "${unit_file}.bak.$(date +%s)"
+        rm -f "$unit_file"
+    done
+    systemctl daemon-reload 2>/dev/null || true
+
+    if [[ -f /etc/snapraid.conf ]]; then
+        cp /etc/snapraid.conf "/etc/snapraid.conf.bak.$(date +%s)"
+        rm -f /etc/snapraid.conf
+        log_success "snapraid.conf eliminado"
+    fi
+
+    rm -f /etc/cron.d/snapraid-nas-setup 2>/dev/null || true
+
+    state_clear "snapraid_conf"
+    state_clear "snapraid_schedule"
+    state_clear "snapraid_installed"
+    log_success "SnapRAID desactivado"
+}

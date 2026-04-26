@@ -72,30 +72,37 @@ preflight_check() {
 show_menu() {
     echo -e "  ${BOLD}${WHITE}¿Qué deseas configurar?${RESET}"
     echo ""
-    echo -e "  ${CYAN}[1]${RESET} ${BOLD}NFS + Samba${RESET}"
-    echo -e "      Configura shares de red desde .env"
-    echo -e "      (NFS para Linux/Kubernetes · Samba/CIFS para Windows/macOS)"
+    echo -e "  ${CYAN}[1]${RESET} ${BOLD}NFS${RESET}"
+    echo -e "      Instalar, reconfigurar o desactivar el servidor NFS"
     echo ""
-    echo -e "  ${CYAN}[2]${RESET} ${BOLD}MergerFS + SnapRAID${RESET}"
-    echo -e "      Setup guiado: selección de discos, formateo, paridad y schedule"
-    echo -e "      (Protege tus datos con paridad + pool unificado de almacenamiento)"
+    echo -e "  ${CYAN}[2]${RESET} ${BOLD}Samba${RESET}"
+    echo -e "      Instalar, reconfigurar o desactivar Samba/CIFS (Windows/macOS)"
     echo ""
-    echo -e "  ${CYAN}[3]${RESET} ${BOLD}Kubernetes Integration${RESET}"
-    echo -e "      Integra el NAS con tu cluster k3s (PVs, cluster-vars, Longhorn)"
+    echo -e "  ${CYAN}[3]${RESET} ${BOLD}MergerFS${RESET}"
+    echo -e "      Pool unificado de almacenamiento (selección de discos, formateo, montaje)"
     echo ""
-    echo -e "  ${CYAN}[4]${RESET} ${BOLD}NFS Sync (remoto → local)${RESET}"
+    echo -e "  ${CYAN}[4]${RESET} ${BOLD}SnapRAID${RESET}"
+    echo -e "      Paridad de datos + timers de sync/scrub automático"
+    echo ""
+    echo -e "  ${CYAN}[5]${RESET} ${BOLD}Gestión de discos${RESET}"
+    echo -e "      Formatear · Copiar desde NFS remoto · Montar / Desmontar · Symlinks de acceso"
+    echo ""
+    echo -e "  ${CYAN}[6]${RESET} ${BOLD}Kubernetes Integration${RESET}"
+    echo -e "      Integra el NAS con tu cluster k3s (PVs, cluster-vars)"
+    echo ""
+    echo -e "  ${CYAN}[7]${RESET} ${BOLD}NFS Sync (remoto → local)${RESET}"
     echo -e "      Copia periódica desde un NFS remoto al almacenamiento local (rsync + timer)"
     echo ""
-    echo -e "  ${CYAN}[5]${RESET} ${BOLD}Configurar schedules${RESET}"
+    echo -e "  ${CYAN}[8]${RESET} ${BOLD}Configurar schedules${RESET}"
     echo -e "      Cambia horarios de SnapRAID y NFS Sync sin re-ejecutar el módulo completo"
     echo ""
-    echo -e "  ${CYAN}[6]${RESET} ${BOLD}Reporte SMART${RESET}"
+    echo -e "  ${CYAN}[9]${RESET} ${BOLD}Reporte SMART${RESET}"
     echo -e "      Salud, health %, TBW, temperatura y horas de todos los discos"
     echo ""
-    echo -e "  ${CYAN}[7]${RESET} ${BOLD}Ejecutar Tests${RESET}"
+    echo -e "  ${CYAN}[10]${RESET} ${BOLD}Ejecutar Tests${RESET}"
     echo -e "      Verifica NFS, Samba y MergerFS post-instalación"
     echo ""
-    echo -e "  ${CYAN}[8]${RESET} ${BOLD}Resetear estado${RESET} (permite re-ejecutar módulos ya configurados)"
+    echo -e "  ${CYAN}[11]${RESET} ${BOLD}Resetear estado${RESET} (permite re-ejecutar módulos ya configurados)"
     echo ""
     echo -e "  ${DIM}[0]${RESET} Salir"
     echo ""
@@ -150,32 +157,44 @@ main() {
         case "${MENU_CHOICE:-}" in
             1)
                 source "${NAS_SETUP_DIR}/modules/01-nfs-samba/setup.sh"
-                setup_nfs_samba
+                setup_nfs
                 ;;
             2)
-                source "${NAS_SETUP_DIR}/modules/02-mergerfs-snapraid/setup.sh"
-                setup_mergerfs_snapraid
+                source "${NAS_SETUP_DIR}/modules/01-nfs-samba/setup.sh"
+                setup_samba
                 ;;
             3)
+                source "${NAS_SETUP_DIR}/modules/02-mergerfs-snapraid/setup.sh"
+                setup_mergerfs
+                ;;
+            4)
+                source "${NAS_SETUP_DIR}/modules/02-mergerfs-snapraid/setup.sh"
+                setup_snapraid
+                ;;
+            5)
+                source "${NAS_SETUP_DIR}/modules/07-disk-manager/setup.sh"
+                setup_disk_manager
+                ;;
+            6)
                 source "${NAS_SETUP_DIR}/modules/03-k8s-integration/setup.sh"
                 setup_k8s_integration
                 ;;
-            4)
+            7)
                 source "${NAS_SETUP_DIR}/modules/04-nfs-sync/setup.sh"
                 setup_nfs_sync
                 ;;
-            5)
+            8)
                 source "${NAS_SETUP_DIR}/modules/05-schedule-config/setup.sh"
                 setup_schedule_config
                 ;;
-            6)
+            9)
                 source "${NAS_SETUP_DIR}/modules/06-smart-report/setup.sh"
                 setup_smart_report
                 ;;
-            7)
+            10)
                 run_tests
                 ;;
-            8)
+            11)
                 reset_state
                 ;;
             0|q|Q|exit|quit)
